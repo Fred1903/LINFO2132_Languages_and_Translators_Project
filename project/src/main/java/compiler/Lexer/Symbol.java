@@ -1,5 +1,9 @@
 package compiler.Lexer;
 
+/**
+ * Represents a lexical token produced by the lexer.
+ * Each symbol contains a type and its associated textual value.
+ */
 public class Symbol {
     private final Lexer.SymbolType type;
     private final String name;
