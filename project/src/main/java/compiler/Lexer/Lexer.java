@@ -305,4 +305,7 @@ public class Lexer {
         // Unreachable as we have a case for everything, but required by Java else it will say no return value..
         throw new RuntimeException("Unreachable");
     }
+    public int getLine(){
+        return line;
+    }
 }
