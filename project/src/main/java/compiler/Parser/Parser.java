@@ -10,7 +10,6 @@ public class Parser {
     private final Lexer lexer;
     private Symbol lookahead;
 
-    private final Set<String> recordTypes = new HashSet<>();
 
     public Parser(Lexer lexer) {
         this.lexer = lexer;
