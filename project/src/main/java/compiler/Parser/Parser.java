@@ -15,7 +15,6 @@ public class Parser {
     public Parser(Lexer lexer) {
         this.lexer = lexer;
     }
-    // Utility methods
     private void advance() {
         lookahead = lexer.getNextSymbol();
     }
