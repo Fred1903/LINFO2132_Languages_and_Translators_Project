@@ -10,6 +10,8 @@ public class BooleanTerm  implements ASTNode {
         this.value = value;
         this.type = type;
     }
+    public Object getValue() { return value; }
+
     @Override
     public <T> T accept(ASTVisitor<T> visitor) {
         return visitor.visit(this);

@@ -11,6 +11,8 @@ public class CharacterChain implements ASTNode {
         this.type = type;
     }
 
+    public Object getChain() { return chain; }
+
     @Override
     public <T> T accept(ASTVisitor<T> visitor) {
         return visitor.visit(this);

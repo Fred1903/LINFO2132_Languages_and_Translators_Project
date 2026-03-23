@@ -7,6 +7,10 @@ package compiler;
 import compiler.Lexer.Lexer;
 import compiler.Lexer.LexerException;
 import compiler.Lexer.Symbol;
+import compiler.Parser.Parser;
+import compiler.Parser.ParserException;
+import compiler.Parser.PrintVisitor;
+import compiler.Parser.AST.ProgramNode;
 
 import java.io.FileReader;
 import java.io.Reader;
@@ -17,7 +21,7 @@ import java.io.Reader;
  * and prints each token on a separate line.
  */
 public class Compiler {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ParserException {
         if (args.length == 2 && args[0].equals("-lexer")) { //check that user runs :-lexer file.lang
             try (Reader reader = new FileReader(args[1])) {
                 Lexer lexer = new Lexer(reader);
@@ -30,6 +34,22 @@ public class Compiler {
             catch (LexerException exception) {
                 System.err.println(exception.getMessage());
                 System.exit(1);//0 means success, anything else (like 1) = failure
+            }
+            catch (Exception exception) {
+                System.err.println("Error: " + exception.getMessage());
+                System.exit(1);
+            }
+        }
+        else if(args.length == 2 && args[0].equals("-parser")){//check that user runs :-parser file.lang
+            try (Reader reader = new FileReader(args[1])){
+                Lexer lexer=new Lexer(reader);
+                Parser parser = new Parser(lexer);
+                ProgramNode programNode = parser.getAST();
+                programNode.accept(new PrintVisitor());
+            } 
+            catch(ParserException exception){
+                System.err.println(exception.getMessage());
+                System.exit(1);
             }
             catch (Exception exception) {
                 System.err.println("Error: " + exception.getMessage());
