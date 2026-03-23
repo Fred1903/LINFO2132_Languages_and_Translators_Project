@@ -3,13 +3,19 @@ package compiler.Parser;
 import compiler.Lexer.Lexer;
 import compiler.Lexer.Symbol;
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.Declarations.ArrayInitializer;
 import compiler.Parser.AST.Declarations.VariableDeclaration;
 import compiler.Parser.AST.Expressions.*;
 import compiler.Parser.AST.ProgramNode;
+import compiler.Parser.AST.Statements.BlockStatement;
+import compiler.Parser.AST.Statements.IfStatement;
+import compiler.Parser.AST.Types.ArrayType;
 import compiler.Parser.AST.Types.PrimitiveType;
+import compiler.Parser.AST.Types.CollectionType;
 import compiler.Parser.AST.Types.Type;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class Parser {
     private final Lexer lexer;
@@ -36,36 +42,143 @@ public class Parser {
     private ProgramNode parseTree() throws ParserException{
         ArrayList<ASTNode> nodes = new ArrayList<>();
         while (!checkType(Lexer.SymbolType.EOF)) {
-            nodes.add(parseStatements());
+            if (check("coll")) {
+                nodes.add(parseCollectionDeclaration());
+            } else if (check("def")) {
+                nodes.add(parseFunctionDeclaration());
+            } else {
+                nodes.add(parseStatements());
+            }
         }
         return new ProgramNode(nodes);
     }
 
+    private ASTNode parseFunctionDeclaration() {
+        return null;
+    }
+
+    private ASTNode parseCollectionDeclaration() {
+        return null;
+    }
+
     private ASTNode parseStatements()throws ParserException {
 
-//        if (check("final") || lookahead.getType() == Lexer.SymbolType.TYPE) {
-//            return parseVariableDeclaration();
-//        }
+        // declaration
+        if (check("final") ||
+                lookahead.getType() == Lexer.SymbolType.TYPE ||
+                lookahead.getType() == Lexer.SymbolType.COLLECTION_TYPE) {
+
+            return parseVariableDeclaration();
+        }
 
         ASTNode expr = parseExpression();
         match(";");
         return expr;
     }
+
+
+    private ASTNode parseBlock() throws ParserException {
+        match("{");
+        ArrayList<ASTNode> statements = new ArrayList<>();
+        while (!check("}")) {
+            statements.add(parseStatements()); // Un bloc contient d'autres statements !
+        }
+        match("}");
+        return new BlockStatement(statements);
+    }
+
     private ASTNode parseExpression() throws ParserException {
-        return parseExpression();
+        return parseAssignment();
     }
 
 
 
+    private ASTNode parseVariableDeclaration() throws ParserException {
+        boolean isFinal = false;
+        if (check("final")) {
+            isFinal = true;
+            advance();
+        }
 
+        Type type = parseType(); // INT ,INT[]..,Person
 
-    private ASTNode parseAssignment() throws ParserException {
-        ASTNode left = parseEquality();
-
+        String name = lookahead.getName();
+        if(!checkType(Lexer.SymbolType.IDENTIFIER)) {
+            throw new ParserException("expected identifier name after type at : ",lexer.getLine(),lookahead.getName());
+        }
+        advance();
+        // initial value : obligatory if final
+        ASTNode value = null;
         if (check("=")) {
             advance();
-            ASTNode right = parseAssignment(); // Récursif à droite pour permettre a = b = 5
+            value = parseExpression();
+        } else if (isFinal) {
+            throw new ParserException("Une variable 'final' doit être initialisée", lexer.getLine(), name);
+        }
+
+        match(";");
+        return new VariableDeclaration(type, name, isFinal, value);
+    }
+
+
+
+    private Type parseType() throws ParserException {
+        if (lookahead.getType() != Lexer.SymbolType.TYPE && lookahead.getType() != Lexer.SymbolType.COLLECTION_TYPE) {
+            throw new ParserException("type or collection_type expected : ", lexer.getLine(), lookahead.getName());
+        }
+
+        String baseName = lookahead.getName();
+        advance();
+        Type type;
+        try {
+            type = PrimitiveType.fromString(baseName);
+        } catch (Exception e) {
+            type = new CollectionType(baseName); // Pour Person, Point, etc.
+        }
+        // counting  [] for dimensions
+        int dimensions = 0;
+        while (check("[")) {
+            match("[");
+            match("]");
+            dimensions++;
+        }
+        if (dimensions > 0) {
+            return new ArrayType(type, dimensions);
+        }
+        return type;
+    }
+    private ASTNode parseAssignment() throws ParserException {
+        ASTNode left = parseLogicalOr();
+
+        if (check("=")|| check("+=") || check("-=") || check("*=") || check("/=")) {
+            advance();
+            ASTNode right = parseAssignment();
             return new Assignment(left, right);
+        }
+        return left;
+    }
+    // Ajoute le OU Logique
+    private ASTNode parseLogicalOr() throws ParserException {
+        ASTNode left = parseLogicalAnd();
+
+        while (check("||")) {
+            String operator = lookahead.getName();
+            advance();
+            ASTNode right = parseLogicalAnd();
+            left = new BinaryExpression(left, operator, right);
+        }
+        return left;
+    }
+
+    // Ajoute le ET Logique
+    private ASTNode parseLogicalAnd() throws ParserException {
+        ASTNode left = parseEquality();
+
+        while (check("&&")) {
+            String operator = lookahead.getName();
+            advance();
+            ASTNode right = parseEquality();
+            left = new BinaryExpression(left, operator, right);
         }
         return left;
     }
@@ -97,27 +210,47 @@ public class Parser {
         ASTNode left = parseMultiplication();
         while (lookahead.getName().equals("+") || lookahead.getName().equals("-")) {
             String operator = lookahead.getName();
-            advance(); // On passe le +
+            advance(); // on passe le +
 
-            ASTNode right = parseMultiplication(); // On cherche le bloc de droite
-            left = new BinaryExpression(left, operator, right); // On crée l'étage de l'arbre
+            ASTNode right = parseMultiplication();
+            left = new BinaryExpression(left, operator, right);
         }
         return left;
     }
 
     // * et /
     private ASTNode parseMultiplication() throws ParserException {
-        ASTNode left = parsePrimary();
+        ASTNode left = parseUnary();
         while (check("*") || check("/") || check("%")) {
             String operator = lookahead.getName();
             advance();
-
-            ASTNode right = parsePrimary();
+            ASTNode right = parseUnary();
             left = new BinaryExpression(left, operator, right);
         }
         return left;
     }
+    //-a or -5
+    private ASTNode parseUnary()throws ParserException{
+        if (check("-") || check("!")|| check("++") || check("--")) {
+            String operator = lookahead.getName();
+            advance();
+            ASTNode operand = parseUnary(); // Récursif pour gérer --3 par exemple
+            return new UnaryExpression(operator, operand);
+        }
+        return parsePrimary();
+    }
     private ASTNode parsePrimary() throws ParserException {
+        // ( expression )
+        if (check("(")) {
+            advance();
+            ASTNode expression = parseExpression();
+            match(")");
+            return expression;
+        }
+        //array initialization
+        if (check("{")) {
+            return parseArrayInitializer();
+        }
         // nombre entier
         if (lookahead.getType() == Lexer.SymbolType.INTEGER) {
             String value = lookahead.getName();
@@ -148,33 +281,119 @@ public class Parser {
             advance();
             return new BooleanTerm(val,type);
         }
-        // identifiant (variable)
-        if (lookahead.getType() == Lexer.SymbolType.IDENTIFIER) {
+        // identifier (variable) / fct call / collection construction
+        if (lookahead.getType() == Lexer.SymbolType.IDENTIFIER || lookahead.getType() == Lexer.SymbolType.COLLECTION_TYPE) {
             String name = lookahead.getName();
             advance();
-            //TABLEAUX
-            if (check("[")) {
-                advance();
-                ASTNode index = parseExpression();
-                match("]");
-                return new ArrayAccess(new Identifier(name), index);
-            }
-            // appel de fonction : nom()
             if (check("(")) {
-//                return parseFunctionCall(name);
+                List<ASTNode> args = parseArguments();
+                //collection constructor
+                if (Character.isUpperCase(name.charAt(0))) {
+                    return new CollectionConstructor(name, args);
+                } else {
+                    // else is function
+                    return new FunctionCall(name, args);
+                }
             }
-            return new Identifier(name);
-        }
 
-        // ( expression )
-        if (check("(")) {
+            //identifier or array access
+            ASTNode node = new Identifier(name);
+            node = parseArrayAccess(node);
+            return node;
+
+        }
+        //array allocation
+        if (lookahead.getType() == Lexer.SymbolType.TYPE || lookahead.getType() == Lexer.SymbolType.COLLECTION_TYPE) {
+            String typeName = lookahead.getName();
+            Type elementType;
+            try {
+                elementType = PrimitiveType.fromString(typeName);
+            } catch (Exception e) {
+                elementType = new CollectionType(typeName);
+            }
             advance();
-            ASTNode expression = parseExpression();
-            match(")");
-            return expression;
+
+            // check if  ARRAY
+            ArrayCreation array = parseArrayAllocation(elementType);
+            if (array != null) {
+                return array;
+            } else {
+                throw new ParserException("Keyword 'ARRAY' expected for array allocation", lexer.getLine(), lookahead.getName());
+            }
         }
 
-        throw new ParserException("No primary expression found for : ", lexer.getLine(), lookahead.getName());
+
+        throw new ParserException("No supported expression at : ", lexer.getLine(), lookahead.getName());
+    }
+    private List<ASTNode> parseArguments() throws ParserException {
+        match("(");
+        List<ASTNode> args = new ArrayList<>();
+
+        if (!check(")")) {
+            args.add(parseExpression());
+            while (check(",")) {
+                advance(); // consomme la virgule
+                args.add(parseExpression());
+            }
+        }
+
+        match(")");
+        return args;
+    }
+
+
+    /**
+     * Parses multidimensional arrays
+     * **/
+    private ASTNode parseArrayInitializer()throws ParserException {
+        match("{");
+        List<ASTNode> elements = new ArrayList<>();
+
+        if (!check("}")) {
+            elements.add(parseExpression());
+            while (check(",")) {
+                advance();
+                elements.add(parseExpression());
+            }
+        }
+
+        match("}");
+        return new ArrayInitializer(elements);
+    }
+
+    /**
+     * Parses array allocation INT ARRAY[expr];
+     * @param elementType
+     * @return
+     * @throws ParserException
+     */
+    private ArrayCreation parseArrayAllocation(Type elementType) throws ParserException {
+        if (check("ARRAY")) {
+            advance();
+            List<ASTNode> sizes = new ArrayList<>();
+
+            match("[");
+            sizes.add(parseExpression());
+            match("]");
+            while (check("[")) {
+                advance(); // consomme "["
+                sizes.add(parseExpression());
+                match("]");
+            }
+
+            return new ArrayCreation(elementType, sizes);
+        }
+        return null;
+    }
+
+    private ASTNode parseArrayAccess(ASTNode node) throws ParserException {
+        while (check("[")) {
+            advance();
+            ASTNode index = parseExpression();
+            match("]");
+            node = new ArrayAccess(node, index);
+        }
+        return node;
     }
 
     private String getType() {
