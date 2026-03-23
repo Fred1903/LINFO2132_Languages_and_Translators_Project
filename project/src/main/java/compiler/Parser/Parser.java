@@ -82,7 +82,7 @@ public class Parser {
     }
 
     private ASTNode parseRelational() throws ParserException {
-        ASTNode left = parseAddition(); 
+        ASTNode left = parseAddition();
 
         while (check("<") || check(">") || check("<=") || check(">=")) {
             String operator = lookahead.getName();
