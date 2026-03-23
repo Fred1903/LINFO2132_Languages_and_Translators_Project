@@ -2,8 +2,13 @@ package compiler.Parser;
 
 import compiler.Lexer.Lexer;
 import compiler.Lexer.Symbol;
+import compiler.Lexer.Lexer.SymbolType;
 import compiler.Parser.AST.ASTNode;
 import compiler.Parser.AST.Declarations.ArrayInitializer;
+import compiler.Parser.AST.Declarations.CollectionDeclaration;
+import compiler.Parser.AST.Declarations.CollectionField;
+import compiler.Parser.AST.Declarations.FunctionDeclaration;
+import compiler.Parser.AST.Declarations.FunctionParameter;
 import compiler.Parser.AST.Declarations.VariableDeclaration;
 import compiler.Parser.AST.Expressions.*;
 import compiler.Parser.AST.ProgramNode;
@@ -56,12 +61,57 @@ public class Parser {
         return new ProgramNode(nodes);
     }
 
-    private ASTNode parseFunctionDeclaration() {
-        return null;
+    private ASTNode parseFunctionDeclaration() throws ParserException {
+        match("def");
+
+        //returntype is optionnal, if it is TYPE or COLLECTION_TYpE then ok else null
+        Type returnType = null;
+        if(checkType(Lexer.SymbolType.TYPE)||checkType(Lexer.SymbolType.COLLECTION_TYPE))returnType=parseType();
+    
+        //functino name
+        if (!checkType(Lexer.SymbolType.IDENTIFIER))
+            throw new ParserException("Expected function name after 'def'", lexer.getLine(), lookahead.getName());
+        String name = lookahead.getName();
+        advance();
+
+        // params
+        match("(");
+        List<FunctionParameter> parameters = new ArrayList<>();
+        while (!check(")")) {
+            Type paramType = parseType();
+            if (!checkType(Lexer.SymbolType.IDENTIFIER))
+                throw new ParserException("Expected parameter name", lexer.getLine(), lookahead.getName());
+            String paramName = lookahead.getName();
+            advance();
+            parameters.add(new FunctionParameter(paramType, paramName));
+            if (check(",")) advance();
+        }
+        match(")");
+        ASTNode body = parseBlock();
+        return new FunctionDeclaration(returnType, name, parameters, body);
     }
 
-    private ASTNode parseCollectionDeclaration() {
-        return null;
+    private ASTNode parseCollectionDeclaration() throws ParserException {
+        match("coll");
+
+        if (!checkType(Lexer.SymbolType.COLLECTION_TYPE))
+            throw new ParserException("Expected collection name in uppercase after \"coll\"", lexer.getLine(), lookahead.getName());
+        String name = lookahead.getName();
+        advance();
+
+        match("{");
+        List<CollectionField> fields = new ArrayList<>();
+        while (!check("}")) {
+            Type fieldType = parseType();
+            if (!checkType(Lexer.SymbolType.IDENTIFIER))
+                throw new ParserException("Expected field name in collection", lexer.getLine(), lookahead.getName());
+            String fieldName = lookahead.getName();
+            advance();
+            match(";");
+            fields.add(new CollectionField(fieldType, fieldName));
+        }
+        match("}");
+        return new CollectionDeclaration(name, fields);
     }
 
     private ASTNode parseStatements()throws ParserException {

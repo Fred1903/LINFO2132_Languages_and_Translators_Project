@@ -1,6 +1,10 @@
 package compiler.Parser.AST;
 
 import compiler.Parser.AST.Declarations.ArrayInitializer;
+import compiler.Parser.AST.Declarations.CollectionDeclaration;
+import compiler.Parser.AST.Declarations.CollectionField;
+import compiler.Parser.AST.Declarations.FunctionDeclaration;
+import compiler.Parser.AST.Declarations.FunctionParameter;
 import compiler.Parser.AST.Declarations.VariableDeclaration;
 import compiler.Parser.AST.Expressions.*;
 import compiler.Parser.AST.Statements.BlockStatement;
@@ -31,6 +35,10 @@ public interface ASTVisitor<T> {
     // declarations
     T visit(VariableDeclaration node);
     T visit(ArrayInitializer node);
+    T visit(CollectionField node);
+    T visit(CollectionDeclaration node);
+    T visit(FunctionParameter node);
+    T visit(FunctionDeclaration node);
 
     // statements
     T visit(BlockStatement node);
