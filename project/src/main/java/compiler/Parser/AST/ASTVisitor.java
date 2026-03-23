@@ -1,0 +1,38 @@
+package compiler.Parser.AST;
+
+import compiler.Parser.AST.Declarations.ArrayInitializer;
+import compiler.Parser.AST.Declarations.VariableDeclaration;
+import compiler.Parser.AST.Expressions.*;
+import compiler.Parser.AST.Statements.BlockStatement;
+import compiler.Parser.AST.Statements.IfStatement;
+
+/*
+  Design pattern visiteur pour AST
+  Chaque visit() correspond a un type de noeud different retournant T 
+*/
+public interface ASTVisitor<T> {
+    // Expressions
+    T visit(Assignment node);
+    T visit(BinaryExpression node);
+    T visit(UnaryExpression node);
+    T visit(Literal node);
+    T visit(FloatLiteral node);
+    T visit(BooleanTerm node);
+    T visit(CharacterChain node);
+    T visit(Identifier node);
+    T visit(FunctionCall node);
+    T visit(CollectionConstructor node);
+    T visit(ArrayAccess node);
+    T visit(ArrayCreation node);
+
+    // declarations
+    T visit(VariableDeclaration node);
+    T visit(ArrayInitializer node);
+
+    // statements
+    T visit(BlockStatement node);
+    T visit(IfStatement node);
+
+    // program
+    T visit(ProgramNode node);
+}
