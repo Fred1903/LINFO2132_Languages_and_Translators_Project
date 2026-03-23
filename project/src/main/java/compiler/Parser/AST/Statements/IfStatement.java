@@ -7,7 +7,6 @@ import compiler.Parser.AST.ASTVisitor;
  * Branchement conditionnel if / if-else.
  * Ex : "if (x > 0) { ... }" -> IfStatement(condition, thenBlock, null)
  *      "if (x > 0) { ... } else { ... }" -> IfStatement(condition, thenBlock, elseBlock)
- * En phase 3, on verifiera que la condition est bien de type BOOL.
  */
 public class IfStatement implements ASTNode {
     private final ASTNode condition;

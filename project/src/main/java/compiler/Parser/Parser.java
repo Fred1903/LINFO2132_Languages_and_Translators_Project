@@ -8,7 +8,10 @@ import compiler.Parser.AST.Declarations.VariableDeclaration;
 import compiler.Parser.AST.Expressions.*;
 import compiler.Parser.AST.ProgramNode;
 import compiler.Parser.AST.Statements.BlockStatement;
+import compiler.Parser.AST.Statements.ForStatement;
 import compiler.Parser.AST.Statements.IfStatement;
+import compiler.Parser.AST.Statements.ReturnStatement;
+import compiler.Parser.AST.Statements.WhileStatement;
 import compiler.Parser.AST.Types.ArrayType;
 import compiler.Parser.AST.Types.PrimitiveType;
 import compiler.Parser.AST.Types.CollectionType;
@@ -63,6 +66,11 @@ public class Parser {
 
     private ASTNode parseStatements()throws ParserException {
 
+        if (check("if"))     return parseIfStatement();
+        if (check("while"))  return parseWhileStatement();
+        if (check("for"))    return parseForStatement();
+        if (check("return")) return parseReturnStatement();
+
         // declaration
         if (check("final") ||
                 lookahead.getType() == Lexer.SymbolType.TYPE ||
@@ -74,6 +82,67 @@ public class Parser {
         ASTNode expr = parseExpression();
         match(";");
         return expr;
+    }
+
+    private ASTNode parseIfStatement() throws ParserException {
+        match("if");
+        match("(");
+        ASTNode condition = parseExpression();
+        match(")");
+        ASTNode thenBlock = parseBlock();
+        ASTNode elseBlock = null;
+        if (check("else")) {
+            advance();
+            elseBlock = parseBlock();
+        }
+        return new IfStatement(condition, thenBlock, elseBlock);
+    }
+
+    private ASTNode parseReturnStatement() throws ParserException {
+        match("return");
+        // empty return/void
+        if (check(";")) {
+            advance();
+            return new ReturnStatement(null);
+        }
+        ASTNode value = parseExpression();
+        match(";");
+        return new ReturnStatement(value);
+    }
+
+    private ASTNode parseForStatement() throws ParserException {
+        match("for");
+        match("(");
+        //declaration de variable sans valeur initiale (ex: INT i)
+        Type varType = parseType();
+        String varName = lookahead.getName();
+        if (!checkType(Lexer.SymbolType.IDENTIFIER))
+            throw new ParserException("Expected identifier in for loop", lexer.getLine(), lookahead.getName());
+        advance();
+        VariableDeclaration variable = new VariableDeclaration(varType, varName, false, null);
+        match(";");
+
+        //plage  ex: 1 -> 100
+        ASTNode from = parseExpression();
+        match("->");
+        ASTNode to = parseExpression();
+        match(";");
+
+        // màj  ex: i+1
+        ASTNode update = parseExpression();
+        match(")");
+        ASTNode body = parseBlock();
+
+        return new ForStatement(variable, from, to, update, body);
+    }
+
+    private ASTNode parseWhileStatement() throws ParserException {
+        match("while");
+        match("(");
+        ASTNode condition = parseExpression();
+        match(")");
+        ASTNode whileBlock = parseBlock();
+        return new WhileStatement(condition, whileBlock);
     }
 
 

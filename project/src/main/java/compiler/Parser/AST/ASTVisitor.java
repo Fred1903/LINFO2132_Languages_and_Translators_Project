@@ -4,7 +4,10 @@ import compiler.Parser.AST.Declarations.ArrayInitializer;
 import compiler.Parser.AST.Declarations.VariableDeclaration;
 import compiler.Parser.AST.Expressions.*;
 import compiler.Parser.AST.Statements.BlockStatement;
+import compiler.Parser.AST.Statements.ForStatement;
 import compiler.Parser.AST.Statements.IfStatement;
+import compiler.Parser.AST.Statements.ReturnStatement;
+import compiler.Parser.AST.Statements.WhileStatement;
 
 /*
   Design pattern visiteur pour AST
@@ -32,6 +35,9 @@ public interface ASTVisitor<T> {
     // statements
     T visit(BlockStatement node);
     T visit(IfStatement node);
+    T visit(WhileStatement node);
+    T visit(ForStatement node);
+    T visit(ReturnStatement node);
 
     // program
     T visit(ProgramNode node);
