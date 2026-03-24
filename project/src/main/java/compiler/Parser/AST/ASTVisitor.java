@@ -31,6 +31,7 @@ public interface ASTVisitor<T> {
     T visit(CollectionConstructor node);
     T visit(ArrayAccess node);
     T visit(ArrayCreation node);
+    T visit(FieldAccess node);
 
     // declarations
     T visit(VariableDeclaration node);

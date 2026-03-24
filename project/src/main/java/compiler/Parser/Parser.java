@@ -163,26 +163,46 @@ public class Parser {
     private ASTNode parseForStatement() throws ParserException {
         match("for");
         match("(");
-        //declaration de variable sans valeur initiale (ex: INT i)
-        Type varType = parseType();
-        String varName = lookahead.getName();
-        if (!checkType(Lexer.SymbolType.IDENTIFIER))
-            throw new ParserException("Expected identifier in for loop", lexer.getLine(), lookahead.getName());
-        advance();
-        VariableDeclaration variable = new VariableDeclaration(varType, varName, false, null);
+        ASTNode variable;
+        if (checkType(Lexer.SymbolType.TYPE) || checkType(Lexer.SymbolType.COLLECTION_TYPE)) {
+            //parse type thn name : create VariableDeclaration without value
+            Type varType = parseType();
+            if (!checkType(Lexer.SymbolType.IDENTIFIER))
+                throw new ParserException("Expected identifier in for loop", lexer.getLine(), lookahead.getName());
+            String varName = lookahead.getName();
+            advance();
+            variable = new VariableDeclaration(varType, varName, false, null);
+        } 
+        else if (checkType(Lexer.SymbolType.IDENTIFIER)) {
+            //else its identifier so reference to existing variable
+            String varName = lookahead.getName();
+            advance();
+            variable = new Identifier(varName);
+        } 
+        else {
+            throw new ParserException("Expected type or identifier in for loop", lexer.getLine(), lookahead.getName());
+        }
         match(";");
 
-        //plage  ex: 1 -> 100
+        //accept 1 -> 100 and 1 - > 100
         ASTNode from = parseExpression();
-        match("->");
+        if (check("->")) {
+            advance();
+        } 
+        else if (check("-")) {
+            advance(); 
+            match(">");
+        } 
+        else {
+            throw new ParserException("Expected '->' in for loop range", lexer.getLine(), lookahead.getName());
+        }
         ASTNode to = parseExpression();
         match(";");
 
-        // màj  ex: i+1
+        //update ex: i+1
         ASTNode update = parseExpression();
         match(")");
         ASTNode body = parseBlock();
-
         return new ForStatement(variable, from, to, update, body);
     }
 
@@ -406,19 +426,19 @@ public class Parser {
             advance();
             if (check("(")) {
                 List<ASTNode> args = parseArguments();
-                //collection constructor
+                ASTNode callNode;
+                //collection constructor, starts with Uppercase or is function call
                 if (Character.isUpperCase(name.charAt(0))) {
-                    return new CollectionConstructor(name, args);
+                    callNode = new CollectionConstructor(name, args);
                 } else {
-                    // else is function
-                    return new FunctionCall(name, args);
+                    callNode = new FunctionCall(name, args);
                 }
+                //after call we can have .smthg or [smthg]
+                return parsePostfix(callNode);
             }
-
-            //identifier or array access
+            //after identifier we can have .smthg or [smthg]
             ASTNode node = new Identifier(name);
-            node = parseArrayAccess(node);
-            return node;
+            return parsePostfix(node);
 
         }
         //array allocation
@@ -505,12 +525,34 @@ public class Parser {
         return null;
     }
 
-    private ASTNode parseArrayAccess(ASTNode node) throws ParserException {
+    /*private ASTNode parseArrayAccess(ASTNode node) throws ParserException {
         while (check("[")) {
             advance();
             ASTNode index = parseExpression();
             match("]");
             node = new ArrayAccess(node, index);
+        }
+        return node;
+    }*/
+
+
+    private ASTNode parsePostfix(ASTNode node) throws ParserException {
+        while (check("[") || check(".")) {
+            if (check("[")) {
+                advance();
+                ASTNode index = parseExpression();
+                match("]");
+                node = new ArrayAccess(node, index);
+            } 
+            else {
+                //else there is a point so consum "." when advancing
+                advance(); 
+                if (!checkType(Lexer.SymbolType.IDENTIFIER))
+                    throw new ParserException("Expected field name after '.'", lexer.getLine(), lookahead.getName());
+                String fieldName = lookahead.getName();
+                advance();
+                node = new FieldAccess(node, fieldName);
+            }
         }
         return node;
     }

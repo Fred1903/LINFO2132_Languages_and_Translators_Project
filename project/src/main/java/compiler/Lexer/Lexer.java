@@ -234,6 +234,7 @@ public class Lexer {
             case '+' -> { return new Symbol(SymbolType.SYMBOL, "+"); }
             // '-' or '->'
             case '-' -> {
+                while (Character.isWhitespace(currentChar)) advance();
                 if (currentChar == '>') {
                     advance();
                     return new Symbol(SymbolType.SYMBOL, "->");

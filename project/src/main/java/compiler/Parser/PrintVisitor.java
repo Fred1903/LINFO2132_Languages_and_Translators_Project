@@ -78,7 +78,8 @@ public class PrintVisitor implements ASTVisitor<Void> {
         return null;
     }
 
-    // ── Statements ───────────────────────────────────────────────────────────
+    ////////// Statements //////////
+    
 
     @Override
     public Void visit(BlockStatement node) {
@@ -263,6 +264,16 @@ public class PrintVisitor implements ASTVisitor<Void> {
         print("ArrayCreation: " + node.getElementType().getName());
         indentCounter++;
         for (var size : node.getSizes()) size.accept(this);
+        indentCounter--;
+        return null;
+    }
+
+
+    @Override
+    public Void visit(FieldAccess node) {
+        print("FieldAccess: ."+node.getFieldName());
+        indentCounter++;
+        node.getObject().accept(this); 
         indentCounter--;
         return null;
     }
