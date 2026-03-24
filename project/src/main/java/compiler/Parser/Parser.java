@@ -232,7 +232,7 @@ public class Parser {
             advance();
             value = parseExpression();
         } else if (isFinal) {
-            throw new ParserException("Une variable 'final' doit être initialisée", lexer.getLine(), name);
+            throw new ParserException("A 'final' variable has to be initialized at : ", lexer.getLine(), name);
         }
 
         match(";");
@@ -370,7 +370,7 @@ public class Parser {
         if (check("{")) {
             return parseArrayInitializer();
         }
-        // nombre entier
+        // INT
         if (lookahead.getType() == Lexer.SymbolType.INTEGER) {
             String value = lookahead.getName();
             String type = getType();
@@ -378,7 +378,7 @@ public class Parser {
             return new Literal(value, type);
         }
 
-        // nombre flottant
+        // FLOAT
         if (lookahead.getType() == Lexer.SymbolType.FLOAT) {
             String value = lookahead.getName();
             String type = getType();
