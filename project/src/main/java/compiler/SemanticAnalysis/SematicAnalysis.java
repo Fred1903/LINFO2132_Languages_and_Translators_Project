@@ -1,5 +1,6 @@
 package compiler.SemanticAnalysis;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -315,7 +316,7 @@ public class SematicAnalysis implements ASTVisitor<Type>{
     @Override
     public Type visit(IfStatement node) {
         if(node.getCondition().accept(this) != PrimitiveType.BOOL){
-            throw new SemanticException("if condition must be BOOL", 0, 0, ";MissingConditionError");
+            throw new SemanticException("if condition must be BOOL", 0, 0, "MissingConditionError");
         }
         node.getThenBlock().accept(this);
         if(node.getElseBlock()!=null)node.getElseBlock().accept(this);
@@ -358,6 +359,13 @@ public class SematicAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(ProgramNode node) {
+         for(var statement : node.getStatements()) {
+            if(statement instanceof FunctionDeclaration functionDeclaration) {
+                List<Type> parameterTypes = new ArrayList<>();
+                for (var parameter : functionDeclaration.getParameters()) parameterTypes.add(parameter.getType());
+                currentSymbolTable.putToScope(functionDeclaration.getName(), new FunctionType(functionDeclaration.getReturnType(), parameterTypes));
+            }
+        }
         for(var statement: node.getStatements()){
             statement.accept(this);
         }
