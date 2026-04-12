@@ -3,6 +3,7 @@ package compiler.SemanticAnalysis;
 import java.util.HashMap;
 import java.util.List;
 
+import compiler.Parser.AST.ASTNode;
 import compiler.Parser.AST.ASTVisitor;
 import compiler.Parser.AST.ProgramNode;
 import compiler.Parser.AST.Declarations.ArrayInitializer;
@@ -29,6 +30,8 @@ import compiler.Parser.AST.Statements.ForStatement;
 import compiler.Parser.AST.Statements.IfStatement;
 import compiler.Parser.AST.Statements.ReturnStatement;
 import compiler.Parser.AST.Statements.WhileStatement;
+import compiler.Parser.AST.Types.ArrayType;
+import compiler.Parser.AST.Types.CollectionType;
 import compiler.Parser.AST.Types.FunctionType;
 import compiler.Parser.AST.Types.PrimitiveType;
 import compiler.Parser.AST.Types.Type;
@@ -64,20 +67,65 @@ public class SematicAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(Assignment node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        Type leftType  = node.getLeft().accept(this);
+        Type rightType = node.getRight().accept(this);
+        if (!isCompatible(leftType, rightType)){
+            throw new SemanticException("Cannot assign " + rightType.getName() + " to " + leftType.getName()+", must be same type", 0, 0, "TypeError");
+        }
+        return leftType;
     }
 
     @Override
     public Type visit(BinaryExpression node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        Type leftType  = node.getLeft().accept(this);
+        Type rightType = node.getRight().accept(this);
+        String operator  = node.getOperator();
+
+        switch (operator) {
+            case "+", "-", "*", "/" -> {
+                if (!isNumeric(leftType) || !isNumeric(rightType)){
+                    throw new SemanticException("Operator '" + operator + "' requires numeric types", 0, 0, "OperatorError");
+                }
+                if (leftType==PrimitiveType.FLOAT || rightType==PrimitiveType.FLOAT)return PrimitiveType.FLOAT;
+                return PrimitiveType.INT;
+
+            }
+            case "%" -> {
+                if (leftType!=PrimitiveType.INT || rightType!=PrimitiveType.INT){
+                    throw new SemanticException("Operator '%' requires INT types", 0, 0, "OperatorError");
+                }
+                return PrimitiveType.INT;
+            }
+            case "==", "=/=" -> {
+                if (!isCompatible(leftType, rightType)){
+                    throw new SemanticException("Operator '" + operator + "' requires same types", 0, 0, "OperatorError");
+                }
+                return PrimitiveType.BOOL;
+            }
+            case "<", ">", "<=", ">=" -> {
+                if (!isNumeric(leftType) || !isNumeric(rightType))
+                    throw new SemanticException("Operator '" + operator + "' requires numeric types", 0, 0, "OperatorError");
+                return PrimitiveType.BOOL;
+            }
+            case "&&", "||" -> {
+                if (leftType!=PrimitiveType.BOOL || rightType!=PrimitiveType.BOOL)
+                    throw new SemanticException("Operator '" + operator + "' requires BOOL types", 0, 0, "OperatorError");
+                return PrimitiveType.BOOL;
+            }
+            default -> throw new SemanticException("Unknown operator '" + operator + "'", 0, 0, "OperatorError");
+        }
     }
 
     @Override
     public Type visit(UnaryExpression node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        Type operand = node.getOperand().accept(this);
+        String operator = node.getOperator();
+        //only one unary exprssion which is "-"
+        if (operator.equals("-")) {
+            if (!isNumeric(operand))throw new SemanticException("Unary expression '-' requires numeric type", 0, 0, "OperatorError");
+            return operand;
+        }
+        throw new SemanticException("Unknown unary operator '" + operator + "'", 0, 0, "OperatorError");
     }
 
     @Override
@@ -107,68 +155,153 @@ public class SematicAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(FunctionCall node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        String name = node.getName();
+
+        // Special cases accepting/returning multiple types
+        if (name.equals("print") || name.equals("println")) {
+            for (var argument : node.getArguments()) argument.accept(this);
+            return null;
+        }
+        if (name.equals("length")) {
+            if (node.getArguments().size() != 1)throw new SemanticException("length() expects one argument", 0, 0, "ArgumentError");
+            Type argumentType = node.getArguments().get(0).accept(this);
+            if (argumentType!=PrimitiveType.STRING && !(argumentType instanceof ArrayType)){
+                throw new SemanticException("length() expects STRING or ARRAY type", 0, 0, "ArgumentError");
+            }
+            return PrimitiveType.INT;
+        }
+
+        //normal case :
+        Type functionType = currentSymbolTable.getType(name);
+        if (!(functionType instanceof FunctionType))throw new SemanticException(name + " is not a function", 0, 0, "ScopeError");
+        FunctionType castedFunctionType = (FunctionType) functionType;
+        List<ASTNode> arguments = node.getArguments();
+        List<Type> parameterTypes = castedFunctionType.getParametersType();
+        if (arguments.size() != parameterTypes.size()){
+            throw new SemanticException("Wrong number of arguments for " + name, 0, 0, "ArgumentError");
+        }
+        for (int i = 0; i < arguments.size(); i++) {
+            Type argumentType = arguments.get(i).accept(this);
+            if (!isCompatible(parameterTypes.get(i), argumentType)){
+                throw new SemanticException("Argument " + i + " of " + name + ": expected " + parameterTypes.get(i).getName() + " but received argument is : " + argumentType.getName(), 0, 0, "ArgumentError");
+            }
+                
+        }
+        return castedFunctionType.getReturnType();
     }
 
     @Override
     public Type visit(CollectionConstructor node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        String name = node.getName();
+        List<CollectionField> fields = collectionFields.get(name);
+        if (fields == null)throw new SemanticException("Unknown collection type: " + name, 0, 0, "CollectionError");
+        if (node.getArguments().size() != fields.size())throw new SemanticException("Incorrect number of arguments for " + name, 0, 0, "ArgumentError");
+        for (int i = 0; i < fields.size(); i++) {
+            Type argumentType = node.getArguments().get(i).accept(this);
+            if (!isCompatible(fields.get(i).getType(), argumentType)){
+                throw new SemanticException("Field " + fields.get(i).getName() + ": expected " + fields.get(i).getType().getName() + " but received " + argumentType.getName(), 0, 0, "ArgumentError");
+            }
+        }        
+        return new CollectionType(name);
     }
 
     @Override
     public Type visit(ArrayAccess node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        Type arrayType = node.getArray().accept(this);
+        Type indexType = node.getIndex().accept(this);
+        if (indexType!=PrimitiveType.INT)throw new SemanticException("Array index must be INT", 0, 0, "TypeError");
+        if (arrayType instanceof ArrayType) {
+            ArrayType castedArrayType = (ArrayType) arrayType;
+            if (castedArrayType.getDimensions() > 1) return new ArrayType(castedArrayType.getElementType(), castedArrayType.getDimensions()-1);
+            return castedArrayType.getElementType();
+        }
+        if (arrayType==PrimitiveType.STRING)return PrimitiveType.INT; 
+        throw new SemanticException("Cannot index non array type", 0, 0, "TypeError");
     }
 
     @Override
     public Type visit(ArrayCreation node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        for (var size : node.getSizes()) {
+            Type sizeType = size.accept(this);
+            if (sizeType!=PrimitiveType.INT)throw new SemanticException("Array size must be INT", 0, 0, "TypeError");
+        }
+        return new ArrayType(node.getElementType(), node.getSizes().size());
     }
 
     @Override
     public Type visit(FieldAccess node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        Type objectType = node.getObject().accept(this);
+        if (!(objectType instanceof CollectionType))throw new SemanticException("Field access on not collection type", 0, 0, "TypeError");
+        List<CollectionField> fields = collectionFields.get(objectType.getName());
+        if (fields == null)throw new SemanticException("Unknown collection: " + objectType.getName(), 0, 0, "CollectionError");
+        for (var field : fields){
+             if (field.getName().equals(node.getFieldName())) return field.getType();
+        }
+        throw new SemanticException("Field '" + node.getFieldName() + "' not found in " + objectType.getName(), 0, 0, "CollectionError");
     }
 
     @Override
     public Type visit(VariableDeclaration node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        Type declaredType = node.getType();
+        if (node.getValue() != null) {
+            Type valueType = node.getValue().accept(this);
+            if (!isCompatible(declaredType, valueType)){
+                throw new SemanticException("Cannot assign " + valueType.getName() + " to " + declaredType.getName()+", must be same type", 0, 0, "TypeError");
+            }
+        }
+        currentSymbolTable.putToScope(node.getName(), declaredType);
+        return declaredType;
     }
 
     @Override
     public Type visit(ArrayInitializer node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+         Type elementType = null;
+        for (var element : node.getElements()) {
+            Type type = element.accept(this);
+            if (elementType == null) elementType = type;
+            else if (!isCompatible(elementType, type))throw new SemanticException("Incorrect types in array initializer", 0, 0, "TypeError");
+        }
+        if (elementType!=null)return new ArrayType(elementType, 1);
+        return new ArrayType(PrimitiveType.INT, 1);
     }
 
     @Override
     public Type visit(CollectionField node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        return node.getType();
     }
 
     @Override
     public Type visit(CollectionDeclaration node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        String collectionName = node.getName();
+        if (!Character.isUpperCase(collectionName.charAt(0)))throw new SemanticException("Collection name should start with an uppercase: " + collectionName, 0, 0, "CollectionError");
+        if (currentSymbolTable.entries.containsKey(collectionName))throw new SemanticException("Collection '" + collectionName + "' already exists", 0, 0, "CollectionError");
+        collectionFields.put(collectionName, node.getFields());
+        currentSymbolTable.putToScope(collectionName, new CollectionType(collectionName));
+        return null;
     }
 
     @Override
     public Type visit(FunctionParameter node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        return node.getType();
     }
 
     @Override
     public Type visit(FunctionDeclaration node) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'visit'");
+        //function signature
+        List<Type> paramTypes = node.getParameters().stream().map(FunctionParameter::getType).toList();
+        currentSymbolTable.putToScope(node.getName(), new FunctionType(node.getReturnType(), paramTypes));
+
+        // inside of the function in a new scope
+        currentSymbolTable = new SymbolTable(currentSymbolTable);
+        for (var parameter : node.getParameters()){
+            currentSymbolTable.putToScope(parameter.getName(), parameter.getType());
+        }
+        Type savedReturnType = currentReturnType;
+        currentReturnType = node.getReturnType();
+        node.getBody().accept(this);
+        currentReturnType = savedReturnType;
+        currentSymbolTable = currentSymbolTable.previousTable;
+        return null;
     }
 
     @Override
@@ -239,7 +372,9 @@ public class SematicAnalysis implements ASTVisitor<Type>{
         return expectedReturnType.getName().equals(returnType.getName());
     }
 
-    
+    private boolean isNumeric(Type t) {
+        return t==PrimitiveType.INT || t==PrimitiveType.FLOAT;
+    }
 
     
 }
