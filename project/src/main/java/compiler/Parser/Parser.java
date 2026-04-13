@@ -370,7 +370,7 @@ public class Parser {
     }
     //-a or -5
     private ASTNode parseUnary()throws ParserException{
-        if (check("-") || check("!")|| check("++") || check("--")) {
+        if (check("-") || check("not")|| check("!")|| check("++") || check("--")) {
             String operator = lookahead.getName();
             advance();
             ASTNode operand = parseUnary(); // Récursif pour gérer --3 par exemple

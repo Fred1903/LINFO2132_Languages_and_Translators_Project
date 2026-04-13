@@ -121,11 +121,26 @@ public class SematicAnalysis implements ASTVisitor<Type>{
     public Type visit(UnaryExpression node) {
         Type operand = node.getOperand().accept(this);
         String operator = node.getOperator();
-        //only one unary exprssion which is "-"
+        if (operator.equals("not")) {
+            if (operand != PrimitiveType.BOOL) {
+                throw new SemanticException("Operator '" + operator + "' requires a BOOL, but got " + operand, 0, 0, "TypeError");
+            }
+            return PrimitiveType.BOOL;
+        }
+        // -
         if (operator.equals("-")) {
-            if (!isNumeric(operand))throw new SemanticException("Unary expression '-' requires numeric type", 0, 0, "OperatorError");
+            if (!isNumeric(operand)) {
+                throw new SemanticException("Unary expression '-' requires numeric type", 0, 0, "OperatorError");
+            }
             return operand;
         }
+        if (operator.equals("++") || operator.equals("--")) {
+            if (operand != PrimitiveType.INT) {
+                throw new SemanticException("Operator '" + operator + " ' requires an INT", 0, 0, "OperatorError");
+            }
+            return PrimitiveType.INT;
+        }
+
         throw new SemanticException("Unknown unary operator '" + operator + "'", 0, 0, "OperatorError");
     }
 
@@ -359,15 +374,29 @@ public class SematicAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(ProgramNode node) {
-         for(var statement : node.getStatements()) {
+        for(var statement : node.getStatements()) {
             if(statement instanceof FunctionDeclaration functionDeclaration) {
                 List<Type> parameterTypes = new ArrayList<>();
-                for (var parameter : functionDeclaration.getParameters()) parameterTypes.add(parameter.getType());
-                currentSymbolTable.putToScope(functionDeclaration.getName(), new FunctionType(functionDeclaration.getReturnType(), parameterTypes));
+                for (var parameter : functionDeclaration.getParameters()) {
+                    parameterTypes.add(parameter.getType());
+                }
+                currentSymbolTable.putToScope(functionDeclaration.getName(),
+                        new FunctionType(functionDeclaration.getReturnType(), parameterTypes));
             }
         }
-        for(var statement: node.getStatements()){
-            statement.accept(this);
+
+        for(var statement : node.getStatements()) {
+            if(statement instanceof FunctionDeclaration functionDeclaration) {
+                currentSymbolTable = new SymbolTable(currentSymbolTable);
+                for (var param : functionDeclaration.getParameters()) {
+                    currentSymbolTable.putToScope(param.getName(), param.getType());
+                }
+                this.currentReturnType = functionDeclaration.getReturnType();
+                functionDeclaration.getBody().accept(this);
+                currentSymbolTable = currentSymbolTable.previousTable;
+            } else {
+                statement.accept(this);
+            }
         }
         return null;
     }

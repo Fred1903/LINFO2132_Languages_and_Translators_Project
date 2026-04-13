@@ -56,5 +56,21 @@ public class Compiler {
                 System.exit(1);
             }
         }
+        else if (args.length == 2 && args[0].equals("-semantic")) {
+            try (Reader reader = new FileReader(args[1])) {
+                Lexer lexer = new Lexer(reader);
+                Parser parser = new Parser(lexer);
+                ProgramNode programNode = parser.getAST();
+                compiler.SemanticAnalysis.SematicAnalysis semantic = new compiler.SemanticAnalysis.SematicAnalysis();
+                programNode.accept(semantic);
+                System.out.println("Success");
+            } catch (compiler.SemanticAnalysis.SemanticException e) {
+                System.err.println(e.getMessage());
+                System.exit(1);
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
+                System.exit(1);
+            }
+        }
     }
 }
