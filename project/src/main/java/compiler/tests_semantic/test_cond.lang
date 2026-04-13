@@ -1,0 +1,11 @@
+def INT square(INT v) {
+return v*v;
+}
+def main() {
+INT value = 2;
+INT result = square(value);
+STRING message = "Bonjour";
+while (message) {
+result = result + 1;
+}
+}

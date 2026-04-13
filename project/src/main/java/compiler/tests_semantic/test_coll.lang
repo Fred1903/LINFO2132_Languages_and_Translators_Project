@@ -1,0 +1,7 @@
+coll Point {
+INT x;
+INT y;
+}
+coll Point{
+BOOL z;
+}

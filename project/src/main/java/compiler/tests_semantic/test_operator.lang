@@ -1,0 +1,5 @@
+def main() {
+INT value = 1;
+BOOL value2 = true;
+INT test = value + value2;
+}
