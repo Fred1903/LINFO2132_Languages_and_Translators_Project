@@ -83,13 +83,22 @@ public class SematicAnalysis implements ASTVisitor<Type>{
         String operator  = node.getOperator();
 
         switch (operator) {
-            case "+", "-", "*", "/" -> {
-                if (!isNumeric(leftType) || !isNumeric(rightType)){
+            case "+" -> {
+                if (leftType == PrimitiveType.STRING && rightType == PrimitiveType.STRING) {
+                    return PrimitiveType.STRING;
+                }
+                if (isNumeric(leftType) && isNumeric(rightType)) {
+                    if (leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT) return PrimitiveType.FLOAT;
+                    return PrimitiveType.INT;
+                }
+                throw new SemanticException("Operator '+' requires numeric types or two STRINGS", 0, 0, "OperatorError");
+            }
+            case "-", "*", "/" -> {
+                if (!isNumeric(leftType) || !isNumeric(rightType)) {
                     throw new SemanticException("Operator '" + operator + "' requires numeric types", 0, 0, "OperatorError");
                 }
-                if (leftType==PrimitiveType.FLOAT || rightType==PrimitiveType.FLOAT)return PrimitiveType.FLOAT;
+                if (leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT) return PrimitiveType.FLOAT;
                 return PrimitiveType.INT;
-
             }
             case "%" -> {
                 if (leftType!=PrimitiveType.INT || rightType!=PrimitiveType.INT){
@@ -259,6 +268,12 @@ public class SematicAnalysis implements ASTVisitor<Type>{
     @Override
     public Type visit(VariableDeclaration node) {
         Type declaredType = node.getType();
+        // known collection type?
+        if (declaredType instanceof CollectionType coll) {
+            if (!collectionFields.containsKey(coll.getName())) {
+                throw new SemanticException("Unknown collection type: " + coll.getName(), 0, 0, "TypeError");
+            }
+        }
         if (node.getValue() != null) {
             Type valueType = node.getValue().accept(this);
             if (!isCompatible(declaredType, valueType)){
@@ -301,13 +316,23 @@ public class SematicAnalysis implements ASTVisitor<Type>{
         return node.getType();
     }
 
+    private boolean alwaysReturns(ASTNode node) {
+        if (node instanceof ReturnStatement) {
+            return true;
+        }
+        if (node instanceof BlockStatement block) {
+            for (var stmt : block.getStatements()) {
+                if (alwaysReturns(stmt)) return true;
+            }
+        }
+        if (node instanceof IfStatement ifStmt) {
+            if (ifStmt.getElseBlock() == null) return false;
+            return alwaysReturns(ifStmt.getThenBlock()) && alwaysReturns(ifStmt.getElseBlock());
+        }
+        return false;
+    }
     @Override
     public Type visit(FunctionDeclaration node) {
-        //function signature
-        List<Type> paramTypes = node.getParameters().stream().map(FunctionParameter::getType).toList();
-        currentSymbolTable.putToScope(node.getName(), new FunctionType(node.getReturnType(), paramTypes));
-
-        // inside of the function in a new scope
         currentSymbolTable = new SymbolTable(currentSymbolTable);
         for (var parameter : node.getParameters()){
             currentSymbolTable.putToScope(parameter.getName(), parameter.getType());
@@ -315,6 +340,12 @@ public class SematicAnalysis implements ASTVisitor<Type>{
         Type savedReturnType = currentReturnType;
         currentReturnType = node.getReturnType();
         node.getBody().accept(this);
+        if (currentReturnType != null) {
+            if (!alwaysReturns(node.getBody())) {
+                throw new SemanticException("Function '" + node.getName() + "' must return a value of type " + currentReturnType.getName(), 0, 0, "ReturnError");
+            }
+        }
+
         currentReturnType = savedReturnType;
         currentSymbolTable = currentSymbolTable.previousTable;
         return null;
@@ -322,9 +353,11 @@ public class SematicAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(BlockStatement node) {
+        currentSymbolTable = new SymbolTable(currentSymbolTable);
         for(var statement: node.getStatements()){
             statement.accept(this);
         }
+        currentSymbolTable = currentSymbolTable.previousTable;
         return null;
     }
 
@@ -384,19 +417,8 @@ public class SematicAnalysis implements ASTVisitor<Type>{
                         new FunctionType(functionDeclaration.getReturnType(), parameterTypes));
             }
         }
-
         for(var statement : node.getStatements()) {
-            if(statement instanceof FunctionDeclaration functionDeclaration) {
-                currentSymbolTable = new SymbolTable(currentSymbolTable);
-                for (var param : functionDeclaration.getParameters()) {
-                    currentSymbolTable.putToScope(param.getName(), param.getType());
-                }
-                this.currentReturnType = functionDeclaration.getReturnType();
-                functionDeclaration.getBody().accept(this);
-                currentSymbolTable = currentSymbolTable.previousTable;
-            } else {
-                statement.accept(this);
-            }
+            statement.accept(this);
         }
         return null;
     }
