@@ -174,6 +174,49 @@ public class TestSemanticAnalysis {
         assertEquals("TypeError", ex.getKeyword());
     }
     @Test
+    void testAccessNonExistentField() {
+        String code = "coll Point { INT x; } def main() { Point p = Point(1); INT z = p.y; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("CollectionError", ex.getKeyword());
+    }
+
+    @Test
+    void testFieldTypeMismatch() {
+        String code = "coll Point { INT x; } def main() { Point p = Point(1); p.x = \"string\"; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("TypeError", ex.getKeyword());
+    }
+    @Test
+    void testInconsistentArrayInitializer() {
+        String code = "def main() { INT[] tab = {1, \"invalide\"}; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("TypeError", ex.getKeyword());
+    }
+    @Test
+    void testFunctionCallBeforeDeclaration() {
+        String code = "def main() { f(); } def f() {}";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+
+    @Test
+    void testRecursiveFunction() {
+        String code = "def INT fact(INT n) { if(n == 0) { return 1; } return n * fact(n-1); }";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testMissingReturnInElse() {
+        String code = "def INT f(BOOL b) { if(b) { return 1; } else { INT x = 0; } }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("ReturnError", ex.getKeyword());
+    }
+
+    @Test
+    void testReturnInWhileOnly() {
+        String code = "def INT f() { while(true) { return 1; } }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("ReturnError", ex.getKeyword());
+    }
+    @Test
     void testValidProgram() {
         String code = "coll Point { INT x; INT y; }\n" +
                 "def INT add(INT a, INT b) { return a + b; }\n" +
