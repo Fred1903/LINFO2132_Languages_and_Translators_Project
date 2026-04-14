@@ -2,10 +2,10 @@ package compiler.Parser.AST.Declarations;
 
 import java.util.List;
 
-import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class CollectionDeclaration implements ASTNode{
+public class CollectionDeclaration extends ASTNodeBase {
     private final String name;
     private final List<CollectionField> fields;
 

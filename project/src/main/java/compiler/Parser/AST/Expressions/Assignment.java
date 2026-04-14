@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
 /**
@@ -9,7 +10,7 @@ import compiler.Parser.AST.ASTVisitor;
  * Ex : "x = 5" -> Assignment(Identifier(x), Literal(5))
  *      "a[i] = 3" -> Assignment(ArrayAccess(a, i), Literal(3))
  */
-public class Assignment implements ASTNode {
+public class Assignment extends ASTNodeBase {
     private final ASTNode left;
     private final ASTNode right;
 

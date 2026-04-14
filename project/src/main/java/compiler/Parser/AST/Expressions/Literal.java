@@ -1,9 +1,9 @@
 package compiler.Parser.AST.Expressions;
 
-import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class Literal implements ASTNode {
+public class Literal extends ASTNodeBase {
     private final String value;
     private final String type;
 

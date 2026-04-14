@@ -3,10 +3,11 @@ package compiler.Parser.AST.Declarations;
 import java.util.List;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import compiler.Parser.AST.Types.Type;
 
-public class FunctionDeclaration implements ASTNode{
+public class FunctionDeclaration extends ASTNodeBase {
     private final Type returnType;
     private final String name;
     private final List<FunctionParameter> parameters;

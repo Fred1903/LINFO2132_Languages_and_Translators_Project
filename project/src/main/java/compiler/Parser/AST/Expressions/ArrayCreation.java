@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import compiler.Parser.AST.Types.Type;
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.List;
  *      "INT ARRAY[5][10]" -> ArrayCreation(PrimitiveType.INT, [Literal(5), Literal(10)])
  * sizes contient les expressions de taille pour chaque dimension.
  */
-public class ArrayCreation implements ASTNode {
+public class ArrayCreation extends ASTNodeBase {
     private final Type elementType;
     private final List<ASTNode> sizes;
 

@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import java.util.List;
 
@@ -10,7 +11,7 @@ import java.util.List;
  *      "println(x)" -> FunctionCall("println", [Identifier(x)])
  * Distinct de CollectionConstructor : le nom commence par une minuscule.
  */
-public class FunctionCall implements ASTNode {
+public class FunctionCall extends ASTNodeBase {
     private final String name;
     private final List<ASTNode> arguments;
 

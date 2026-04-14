@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Statements;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
 /**
@@ -13,7 +14,7 @@ import compiler.Parser.AST.ASTVisitor;
  *   update   : BinaryExpression(Identifier(i), +, Literal(1))
  *   body     : BlockStatement(...)
  */
-public class ForStatement implements ASTNode {
+public class ForStatement extends ASTNodeBase {
     private final ASTNode variable;
     private final ASTNode from;
     private final ASTNode to;

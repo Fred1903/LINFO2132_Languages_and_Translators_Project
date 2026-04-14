@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Declarations;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import java.util.List;
 
@@ -10,7 +11,7 @@ import java.util.List;
  * Les elements peuvent eux-memes etre des ArrayInitializer pour les tableaux 2D :
  * "{{1, 2}, {3, 4}}" -> ArrayInitializer([ArrayInitializer([1,2]), ArrayInitializer([3,4])])
  */
-public class ArrayInitializer implements ASTNode {
+public class ArrayInitializer extends ASTNodeBase {
     private final List<ASTNode> elements;
 
     public ArrayInitializer(List<ASTNode> elements) {

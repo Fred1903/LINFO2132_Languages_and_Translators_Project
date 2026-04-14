@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
 /**
@@ -9,7 +10,7 @@ import compiler.Parser.AST.ASTVisitor;
  * logique (&&, ||).
  * Ex : "a + b" -> BinaryExpression(Identifier(a), "+", Identifier(b))
  */
-public class BinaryExpression implements ASTNode {
+public class BinaryExpression extends ASTNodeBase {
     private final ASTNode left;
     private final String operator;
     private final ASTNode right;

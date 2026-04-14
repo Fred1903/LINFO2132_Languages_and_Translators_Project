@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
 /**
@@ -9,7 +10,7 @@ import compiler.Parser.AST.ASTVisitor;
  *      "tab[9*x]" -> ArrayAccess(Identifier(tab), BinaryExpression(9, *, x))
  * Peut etre imbrique : "matrix[i][j]" -> ArrayAccess(ArrayAccess(matrix, i), j)
  */
-public class ArrayAccess implements ASTNode {
+public class ArrayAccess extends ASTNodeBase {
     private final ASTNode array;
     private final ASTNode index;
 

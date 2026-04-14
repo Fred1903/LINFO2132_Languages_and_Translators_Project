@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
 /**
@@ -8,7 +9,7 @@ import compiler.Parser.AST.ASTVisitor;
  * Ex : "-x" -> UnaryExpression("-", Identifier(x))
  *      "not(b)" sera gere comme FunctionCall, pas UnaryExpression.
  */
-public class UnaryExpression implements ASTNode {
+public class UnaryExpression extends ASTNodeBase {
     private final String operator;
     private final ASTNode operand;
 
