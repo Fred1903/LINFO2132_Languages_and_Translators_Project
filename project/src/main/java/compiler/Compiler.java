@@ -65,10 +65,26 @@ public class Compiler {
                 semantic.analyze(programNode);
                 System.out.println("Success");
             } catch (compiler.SemanticAnalysis.SemanticException e) {
-                System.err.println(e.getMessage());
+                System.out.println(e.getMessage());
                 System.exit(1);
             } catch (Exception e) {
-                System.err.println("Error: " + e.getMessage());
+                System.out.println("Error: " + e.getMessage());
+                System.exit(1);
+            }
+        }
+        else if (args.length == 1) {
+            try (Reader reader = new FileReader(args[0])) {
+                Lexer lexer = new Lexer(reader);
+                Parser parser = new Parser(lexer);
+                ProgramNode programNode = parser.getAST();
+                compiler.SemanticAnalysis.SemanticAnalysis semantic = new compiler.SemanticAnalysis.SemanticAnalysis();
+                semantic.analyze(programNode);
+                System.out.println("Success");
+            } catch (compiler.SemanticAnalysis.SemanticException e) {
+                System.out.println(e.getMessage());
+                System.exit(1);
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
                 System.exit(1);
             }
         }
