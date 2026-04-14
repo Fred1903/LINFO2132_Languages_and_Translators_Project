@@ -168,6 +168,13 @@ public class TestSemanticAnalysis {
         assertEquals("TypeError", ex.getKeyword());
     }
     @Test
+    void testInvalidArrayIndexType() {
+        // Tentative d'accéder à un index avec un STRING au lieu d'un INT
+        String code = "def main() { INT[][] tab = {{1, 2}}; INT x = tab[0][\"invalide\"]; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("TypeError", ex.getKeyword());
+    }
+    @Test
     void testValidProgram() {
         String code = "coll Point { INT x; INT y; }\n" +
                 "def INT add(INT a, INT b) { return a + b; }\n" +
