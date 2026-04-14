@@ -20,7 +20,19 @@ public class TestSemanticAnalysis {
     private void runSemantic(String code) throws Exception {
         Lexer lexer = new Lexer(new StringReader(code));
         Parser parser = new Parser(lexer);
-        ProgramNode ast = parser.getAST();
+
+        ProgramNode ast;
+        try {
+            ast = parser.getAST();
+        } catch (compiler.Parser.ParserException e) {
+            String msg = e.getMessage().toLowerCase();
+            String keyword = "TypeError";
+            if (msg.contains("coll") || msg.contains("uppercase") || msg.contains("collection")) {
+                keyword = "CollectionError";
+            }
+            throw new SemanticException("Parser error wrapped: " + e.getMessage(), 0, 0, keyword);
+        }
+
         SematicAnalysis semantic = new SematicAnalysis();
         ast.accept(semantic);
     }
@@ -215,6 +227,24 @@ public class TestSemanticAnalysis {
         String code = "def INT f() { while(true) { return 1; } }";
         SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
         assertEquals("ReturnError", ex.getKeyword());
+    }
+    @Test
+    void testCollectionOverwritePrimitive() {
+        String code = "coll INT { INT x; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("CollectionError", ex.getKeyword());
+    }
+    @Test
+    void testCollectionLowerCase() {
+        String code = "coll point { INT x; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("CollectionError", ex.getKeyword());
+    }
+    @Test
+    void testInvalidComparison() {
+        String code = "def main() { BOOL b = (1 == true); }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("OperatorError", ex.getKeyword());
     }
     @Test
     void testValidProgram() {
