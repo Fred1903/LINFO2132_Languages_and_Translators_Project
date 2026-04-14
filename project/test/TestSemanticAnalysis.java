@@ -169,7 +169,6 @@ public class TestSemanticAnalysis {
     }
     @Test
     void testInvalidArrayIndexType() {
-        // Tentative d'accéder à un index avec un STRING au lieu d'un INT
         String code = "def main() { INT[][] tab = {{1, 2}}; INT x = tab[0][\"invalide\"]; }";
         SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
         assertEquals("TypeError", ex.getKeyword());
