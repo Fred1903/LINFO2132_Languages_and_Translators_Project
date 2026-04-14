@@ -7,7 +7,7 @@ import java.util.ArrayList;
  * Contient la liste ordonnee de tous les statements de haut niveau :
  * declarations de constantes, de variables globales, de collections, de fonctions.
  */
-public class ProgramNode implements ASTNode {
+public class ProgramNode extends ASTNodeBase {
     private final ArrayList<ASTNode> statements;
 
     public ProgramNode(ArrayList<ASTNode> statements) {

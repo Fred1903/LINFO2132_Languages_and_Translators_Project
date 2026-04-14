@@ -316,4 +316,7 @@ public class Lexer {
     public int getLine(){
         return line;
     }
+    public int getColumn(){
+        return column;
+    }
 }

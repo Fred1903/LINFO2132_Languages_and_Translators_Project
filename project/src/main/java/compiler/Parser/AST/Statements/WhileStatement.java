@@ -1,9 +1,10 @@
 package compiler.Parser.AST.Statements;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class WhileStatement implements ASTNode{
+public class WhileStatement extends ASTNodeBase {
     private final ASTNode condition;
     private final ASTNode whileBlock;
     

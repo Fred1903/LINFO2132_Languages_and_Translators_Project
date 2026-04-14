@@ -1,9 +1,9 @@
 package compiler.Parser.AST.Expressions;
 
-import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class CharacterChain implements ASTNode {
+public class CharacterChain extends ASTNodeBase {
     private final Object chain;
     private final  String type;
     public CharacterChain(Object chain, String type) {

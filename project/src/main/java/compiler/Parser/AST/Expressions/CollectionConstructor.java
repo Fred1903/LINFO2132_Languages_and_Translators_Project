@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import java.util.List;
 
@@ -9,7 +10,7 @@ import java.util.List;
  * Ex : "Point(3, 7)" -> CollectionConstructor("Point", [Literal(3), Literal(7)])
  * Distingue de FunctionCall par la majuscule initiale du nom.
  */
-public class CollectionConstructor implements ASTNode {
+public class CollectionConstructor extends ASTNodeBase {
     private final String name;
     private final List<ASTNode> arguments;
 

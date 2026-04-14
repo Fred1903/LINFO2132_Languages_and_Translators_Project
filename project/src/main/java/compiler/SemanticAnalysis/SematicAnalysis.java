@@ -71,7 +71,7 @@ public class SematicAnalysis implements ASTVisitor<Type>{
         Type leftType  = node.getLeft().accept(this);
         Type rightType = node.getRight().accept(this);
         if (!isCompatible(leftType, rightType)){
-            throw new SemanticException("Cannot assign " + rightType.getName() + " to " + leftType.getName()+", must be same type", 0, 0, "TypeError");
+            throw new SemanticException("Cannot assign " + rightType.getName() + " to " + leftType.getName()+", must be same type", node.getLine(), node.getColumn(), "TypeError");
         }
         return leftType;
     }
@@ -99,30 +99,31 @@ public class SematicAnalysis implements ASTVisitor<Type>{
                 }
                 if (leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT) return PrimitiveType.FLOAT;
                 return PrimitiveType.INT;
+
             }
             case "%" -> {
                 if (leftType!=PrimitiveType.INT || rightType!=PrimitiveType.INT){
-                    throw new SemanticException("Operator '%' requires INT types", 0, 0, "OperatorError");
+                    throw new SemanticException("Operator '%' requires INT types", node.getLine(), node.getColumn(), "OperatorError");
                 }
                 return PrimitiveType.INT;
             }
             case "==", "=/=" -> {
                 if (!isCompatible(leftType, rightType)){
-                    throw new SemanticException("Operator '" + operator + "' requires same types", 0, 0, "OperatorError");
+                    throw new SemanticException("Operator '" + operator + "' requires same types", node.getLine(), node.getColumn(), "OperatorError");
                 }
                 return PrimitiveType.BOOL;
             }
             case "<", ">", "<=", ">=" -> {
                 if (!isNumeric(leftType) || !isNumeric(rightType))
-                    throw new SemanticException("Operator '" + operator + "' requires numeric types", 0, 0, "OperatorError");
+                    throw new SemanticException("Operator '" + operator + "' requires numeric types", node.getLine(), node.getColumn(), "OperatorError");
                 return PrimitiveType.BOOL;
             }
             case "&&", "||" -> {
                 if (leftType!=PrimitiveType.BOOL || rightType!=PrimitiveType.BOOL)
-                    throw new SemanticException("Operator '" + operator + "' requires BOOL types", 0, 0, "OperatorError");
+                    throw new SemanticException("Operator '" + operator + "' requires BOOL types", node.getLine(), node.getColumn(), "OperatorError");
                 return PrimitiveType.BOOL;
             }
-            default -> throw new SemanticException("Unknown operator '" + operator + "'", 0, 0, "OperatorError");
+            default -> throw new SemanticException("Unknown operator '" + operator + "'", node.getLine(), node.getColumn(), "OperatorError");
         }
     }
 
@@ -333,6 +334,11 @@ public class SematicAnalysis implements ASTVisitor<Type>{
     }
     @Override
     public Type visit(FunctionDeclaration node) {
+        //function signature
+        List<Type> paramTypes = node.getParameters().stream().map(FunctionParameter::getType).toList();
+        currentSymbolTable.putToScope(node.getName(), new FunctionType(node.getReturnType(), paramTypes));
+
+        // inside of the function in a new scope
         currentSymbolTable = new SymbolTable(currentSymbolTable);
         for (var parameter : node.getParameters()){
             currentSymbolTable.putToScope(parameter.getName(), parameter.getType());

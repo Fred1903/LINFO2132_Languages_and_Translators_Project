@@ -1,10 +1,10 @@
 package compiler.Parser.AST.Declarations;
 
-import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import compiler.Parser.AST.Types.Type;
 
-public class FunctionParameter implements ASTNode {
+public class FunctionParameter extends ASTNodeBase {
     private final Type type;
     private final String name;
     

@@ -1,9 +1,10 @@
 package compiler.Parser.AST.Expressions;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class FieldAccess implements ASTNode {
+public class FieldAccess extends ASTNodeBase {
     private final ASTNode object;
     private final String fieldName;
     

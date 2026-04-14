@@ -1,9 +1,9 @@
 package compiler.Parser.AST.Expressions;
 
-import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class BooleanTerm  implements ASTNode {
+public class BooleanTerm extends ASTNodeBase {
     private Object value;
     private String type;
     public BooleanTerm(Object value, String type) {

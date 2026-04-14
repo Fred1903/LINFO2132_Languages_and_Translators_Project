@@ -2,10 +2,10 @@ package compiler.Parser.AST.Declarations;
 
 import compiler.Parser.AST.Types.Type;
 
-import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
-public class CollectionField implements ASTNode {
+public class CollectionField extends ASTNodeBase {
     private final Type type;
     private final String name;
 

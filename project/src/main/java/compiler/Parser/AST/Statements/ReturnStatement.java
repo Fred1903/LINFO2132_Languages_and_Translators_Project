@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Statements;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 
 /**
@@ -8,7 +9,7 @@ import compiler.Parser.AST.ASTVisitor;
  * Ex : "return v*v;" -> ReturnStatement(BinaryExpression(v, *, v)) (ex return 3+x)..
  *      "return;" -> ReturnStatement(null)  pour les fonctions void
  */
-public class ReturnStatement implements ASTNode {
+public class ReturnStatement extends ASTNodeBase {
     private final ASTNode value; 
 
     public ReturnStatement(ASTNode value) {

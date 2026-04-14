@@ -4,6 +4,7 @@ import compiler.Lexer.Lexer;
 import compiler.Lexer.Symbol;
 import compiler.Lexer.Lexer.SymbolType;
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.Declarations.ArrayInitializer;
 import compiler.Parser.AST.Declarations.CollectionDeclaration;
 import compiler.Parser.AST.Declarations.CollectionField;
@@ -62,12 +63,14 @@ public class Parser {
     }
 
     private ASTNode parseFunctionDeclaration() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         match("def");
 
         //returntype is optionnal, if it is TYPE or COLLECTION_TYpE then ok else null
         Type returnType = null;
         if(checkType(Lexer.SymbolType.TYPE)||checkType(Lexer.SymbolType.COLLECTION_TYPE))returnType=parseType();
-    
+
         //functino name
         if (!checkType(Lexer.SymbolType.IDENTIFIER))
             throw new ParserException("Expected function name after 'def'", lexer.getLine(), lookahead.getName());
@@ -88,10 +91,14 @@ public class Parser {
         }
         match(")");
         ASTNode body = parseBlock();
-        return new FunctionDeclaration(returnType, name, parameters, body);
+        FunctionDeclaration fd = new FunctionDeclaration(returnType, name, parameters, body);
+        fd.setLine(line); fd.setColumn(column);
+        return fd;
     }
 
     private ASTNode parseCollectionDeclaration() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         match("coll");
 
         if (!checkType(Lexer.SymbolType.COLLECTION_TYPE))
@@ -111,7 +118,9 @@ public class Parser {
             fields.add(new CollectionField(fieldType, fieldName));
         }
         match("}");
-        return new CollectionDeclaration(name, fields);
+        CollectionDeclaration cd = new CollectionDeclaration(name, fields);
+        cd.setLine(line); cd.setColumn(column);
+        return cd;
     }
 
     private ASTNode parseStatements()throws ParserException {
@@ -135,6 +144,8 @@ public class Parser {
     }
 
     private ASTNode parseIfStatement() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         match("if");
         match("(");
         ASTNode condition = parseExpression();
@@ -145,22 +156,32 @@ public class Parser {
             advance();
             elseBlock = parseBlock();
         }
-        return new IfStatement(condition, thenBlock, elseBlock);
+        IfStatement ifStatement = new IfStatement(condition, thenBlock, elseBlock);
+        ifStatement.setLine(line); ifStatement.setColumn(column);
+        return ifStatement;
     }
 
     private ASTNode parseReturnStatement() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         match("return");
         // empty return/void
         if (check(";")) {
             advance();
-            return new ReturnStatement(null);
+            ReturnStatement returnStatement = new ReturnStatement(null);
+            returnStatement.setLine(line); returnStatement.setColumn(column);
+            return returnStatement;
         }
         ASTNode value = parseExpression();
         match(";");
-        return new ReturnStatement(value);
+        ReturnStatement returnStatement = new ReturnStatement(value);
+        returnStatement.setLine(line); returnStatement.setColumn(column);
+        return returnStatement;
     }
 
     private ASTNode parseForStatement() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         match("for");
         match("(");
         ASTNode variable;
@@ -172,13 +193,13 @@ public class Parser {
             String varName = lookahead.getName();
             advance();
             variable = new VariableDeclaration(varType, varName, false, null);
-        } 
+        }
         else if (checkType(Lexer.SymbolType.IDENTIFIER)) {
             //else its identifier so reference to existing variable
             String varName = lookahead.getName();
             advance();
             variable = new Identifier(varName);
-        } 
+        }
         else {
             throw new ParserException("Expected type or identifier in for loop", lexer.getLine(), lookahead.getName());
         }
@@ -188,11 +209,11 @@ public class Parser {
         ASTNode from = parseExpression();
         if (check("->")) {
             advance();
-        } 
+        }
         else if (check("-")) {
-            advance(); 
+            advance();
             match(">");
-        } 
+        }
         else {
             throw new ParserException("Expected '->' in for loop range", lexer.getLine(), lookahead.getName());
         }
@@ -203,16 +224,22 @@ public class Parser {
         ASTNode update = parseExpression();
         match(")");
         ASTNode body = parseBlock();
-        return new ForStatement(variable, from, to, update, body);
+        ForStatement forStatement = new ForStatement(variable, from, to, update, body);
+        forStatement.setLine(line); forStatement.setColumn(column);
+        return forStatement;
     }
 
     private ASTNode parseWhileStatement() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         match("while");
         match("(");
         ASTNode condition = parseExpression();
         match(")");
         ASTNode whileBlock = parseBlock();
-        return new WhileStatement(condition, whileBlock);
+        WhileStatement whileStatement = new WhileStatement(condition, whileBlock);
+        whileStatement.setLine(line); whileStatement.setColumn(column);
+        return whileStatement;
     }
 
 
@@ -233,6 +260,8 @@ public class Parser {
 
 
     private ASTNode parseVariableDeclaration() throws ParserException {
+        int line = lexer.getLine();
+        int column = lexer.getColumn();
         boolean isFinal = false;
         if (check("final")) {
             isFinal = true;
@@ -256,7 +285,9 @@ public class Parser {
         }
 
         match(";");
-        return new VariableDeclaration(type, name, isFinal, value);
+        VariableDeclaration variableDeclaration = new VariableDeclaration(type, name, isFinal, value);
+        variableDeclaration.setLine(line); variableDeclaration.setColumn(column);
+        return variableDeclaration;
     }
 
 
@@ -392,36 +423,49 @@ public class Parser {
         }
         // INT
         if (lookahead.getType() == Lexer.SymbolType.INTEGER) {
+            int line = lexer.getLine(); int column = lexer.getColumn();
             String value = lookahead.getName();
             String type = getType();
             advance();
-            return new Literal(value, type);
+            Literal literal = new Literal(value, type);
+            literal.setLine(line); literal.setColumn(column);
+            return literal;
         }
 
         // FLOAT
         if (lookahead.getType() == Lexer.SymbolType.FLOAT) {
+            int line = lexer.getLine(); int column = lexer.getColumn();
             String value = lookahead.getName();
             String type = getType();
             advance();
-            return new FloatLiteral(value,type);
+            FloatLiteral floatLiteral = new FloatLiteral(value, type);
+            floatLiteral.setLine(line); floatLiteral.setColumn(column);
+            return floatLiteral;
         }
         // STRING
         if (lookahead.getType() == Lexer.SymbolType.STRING) {
+            int line = lexer.getLine(); int column = lexer.getColumn();
             String val = lookahead.getName();
             String type = getType();
             advance();
-            return new CharacterChain(val,type);
+            CharacterChain characterChain = new CharacterChain(val, type);
+            characterChain.setLine(line); characterChain.setColumn(column);
+            return characterChain;
         }
 
         // BOOLEAN
         if (lookahead.getType() == Lexer.SymbolType.BOOLEAN) {
+            int line = lexer.getLine(); int column = lexer.getColumn();
             String val = lookahead.getName();
             String type = getType();
             advance();
-            return new BooleanTerm(val,type);
+            BooleanTerm booleanTerm = new BooleanTerm(val, type);
+            booleanTerm.setLine(line); booleanTerm.setColumn(column);
+            return booleanTerm;
         }
         // identifier (variable) / fct call / collection construction
         if (lookahead.getType() == Lexer.SymbolType.IDENTIFIER || lookahead.getType() == Lexer.SymbolType.COLLECTION_TYPE) {
+            int line = lexer.getLine(); int column = lexer.getColumn();
             String name = lookahead.getName();
             advance();
             if (check("(")) {
@@ -433,12 +477,15 @@ public class Parser {
                 } else {
                     callNode = new FunctionCall(name, args);
                 }
+                //we cast in order to setLine and col
+                ((ASTNodeBase) callNode).setLine(line); ((ASTNodeBase) callNode).setColumn(column);
                 //after call we can have .smthg or [smthg]
                 return parsePostfix(callNode);
             }
             //after identifier we can have .smthg or [smthg]
-            ASTNode node = new Identifier(name);
-            return parsePostfix(node);
+            Identifier identifier = new Identifier(name);
+            identifier.setLine(line); identifier.setColumn(column);
+            return parsePostfix(identifier);
 
         }
         //array allocation

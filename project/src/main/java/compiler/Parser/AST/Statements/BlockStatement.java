@@ -1,6 +1,7 @@
 package compiler.Parser.AST.Statements;
 
 import compiler.Parser.AST.ASTNode;
+import compiler.Parser.AST.ASTNodeBase;
 import compiler.Parser.AST.ASTVisitor;
 import java.util.ArrayList;
 
@@ -9,7 +10,7 @@ import java.util.ArrayList;
  * Ex : "{ INT x = 5; println(x); }"
  * Utilise comme corps des fonctions, des if/else, des while et des for
  */
-public class BlockStatement implements ASTNode {
+public class BlockStatement extends ASTNodeBase {
     private final ArrayList<ASTNode> statements;
 
     public BlockStatement(ArrayList<ASTNode> statements) {
