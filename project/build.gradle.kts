@@ -21,12 +21,19 @@ sourceSets.main.get().java.srcDir("src")
 sourceSets.test.get().java.srcDir("test")
 
 dependencies {
-    // Use JUnit test framework.
+    // JUnit4 for TestLexer and TestParser
     testImplementation("junit:junit:4.13.2")
-    implementation("junit:junit:4.13.2")
+    // JUnit 5 for TestSemanticAnalysis
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    // Vintage engine: allows JUnit 4 tests to run under JUnit 5 platform
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.0")
 
     // This dependency is used by the application.
     implementation("com.google.guava:guava:31.1-jre")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 application {

@@ -39,3 +39,22 @@ java -cp out compiler.Compiler -parser src/main/java/compiler/test.lang
 .\gradlew.bat run --args="-parser src/main/java/compiler/test.lang"
 ```
 
+---
+
+# Semantic Analysis
+
+## Run on a file
+
+```bash
+./gradlew run --args="-semantic src/main/java/compiler/tests_semantic/test_type.lang"
+```
+
+Replace `test_type.lang` with any file in `tests_semantic/` to test a different error case:
+`test_coll.lang`, `test_operator.lang`, `test_arg_error.lang`, `test_cond.lang`, `test_return.lang`, `test_scope.lang`
+
+## Run all tests
+
+```bash
+./gradlew test --rerun-tasks
+```
+

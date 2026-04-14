@@ -1,8 +1,11 @@
 package compiler.SemanticAnalysis;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import compiler.Parser.AST.ASTNode;
 import compiler.Parser.AST.ASTVisitor;
@@ -37,18 +40,21 @@ import compiler.Parser.AST.Types.FunctionType;
 import compiler.Parser.AST.Types.PrimitiveType;
 import compiler.Parser.AST.Types.Type;
 
-public class SematicAnalysis implements ASTVisitor<Type>{
+public class SemanticAnalysis implements ASTVisitor<Type>{
     private SymbolTable currentSymbolTable;
     private Type currentReturnType = null;
     private final HashMap<String, List<CollectionField>> collectionFields = new HashMap<>();
+    private static final Set<String> RESERVED_NAMES = new HashSet<>(Arrays.asList(
+        "INT", "FLOAT", "BOOL", "STRING","while", "if", "else", "for", "def", 
+            "coll", "return", "not", "final", "ARRAY"));
 
 
-    public SematicAnalysis() {
+    public SemanticAnalysis() {
         currentSymbolTable = new SymbolTable(null);
     }
 
 
-    void analyze(ProgramNode root){
+    public void analyze(ProgramNode root){
         // Add built-in functions
         currentSymbolTable.putToScope("not", new FunctionType(PrimitiveType.BOOL, List.of(PrimitiveType.BOOL)));
         currentSymbolTable.putToScope("str", new FunctionType(PrimitiveType.STRING, List.of(PrimitiveType.INT)));
@@ -297,6 +303,7 @@ public class SematicAnalysis implements ASTVisitor<Type>{
     public Type visit(CollectionDeclaration node) {
         String collectionName = node.getName();
         if (!Character.isUpperCase(collectionName.charAt(0)))throw new SemanticException("Collection name should start with an uppercase: " + collectionName, node.getLine(), node.getColumn(), "CollectionError");
+        if (RESERVED_NAMES.contains(collectionName))throw new SemanticException("Collection name '" + collectionName + "' can not overwrite existing type/keyword", node.getLine(), node.getColumn(), "CollectionError");
         if (currentSymbolTable.entries.containsKey(collectionName))throw new SemanticException("Collection '" + collectionName + "' already exists", node.getLine(), node.getColumn(), "CollectionError");
         collectionFields.put(collectionName, node.getFields());
         currentSymbolTable.putToScope(collectionName, new CollectionType(collectionName));

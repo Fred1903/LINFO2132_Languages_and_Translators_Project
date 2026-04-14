@@ -61,8 +61,8 @@ public class Compiler {
                 Lexer lexer = new Lexer(reader);
                 Parser parser = new Parser(lexer);
                 ProgramNode programNode = parser.getAST();
-                compiler.SemanticAnalysis.SematicAnalysis semantic = new compiler.SemanticAnalysis.SematicAnalysis();
-                programNode.accept(semantic);
+                compiler.SemanticAnalysis.SemanticAnalysis semantic = new compiler.SemanticAnalysis.SemanticAnalysis();
+                semantic.analyze(programNode);
                 System.out.println("Success");
             } catch (compiler.SemanticAnalysis.SemanticException e) {
                 System.err.println(e.getMessage());

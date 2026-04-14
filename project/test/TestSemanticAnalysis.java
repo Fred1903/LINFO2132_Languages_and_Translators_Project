@@ -3,13 +3,13 @@ package compiler;
 import compiler.Lexer.Lexer;
 import compiler.Parser.Parser;
 import compiler.Parser.AST.ProgramNode;
-import compiler.SemanticAnalysis.SematicAnalysis;
+import compiler.SemanticAnalysis.SemanticAnalysis;
 import compiler.SemanticAnalysis.SemanticException;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.io.StringReader;
 import java.nio.file.Files;
@@ -33,8 +33,8 @@ public class TestSemanticAnalysis {
             throw new SemanticException("Parser error wrapped: " + e.getMessage(), 0, 0, keyword);
         }
 
-        SematicAnalysis semantic = new SematicAnalysis();
-        ast.accept(semantic);
+        SemanticAnalysis semantic = new SemanticAnalysis();
+        semantic.analyze(ast);
     }
 
     @Test
@@ -205,15 +205,15 @@ public class TestSemanticAnalysis {
         assertEquals("TypeError", ex.getKeyword());
     }
     @Test
-    void testFunctionCallBeforeDeclaration() {
+    void testFunctionCallBeforeDeclaration() throws Exception {
         String code = "def main() { f(); } def f() {}";
-        assertDoesNotThrow(() -> runSemantic(code));
+        runSemantic(code);
     }
 
     @Test
-    void testRecursiveFunction() {
+    void testRecursiveFunction() throws Exception {
         String code = "def INT fact(INT n) { if(n == 0) { return 1; } return n * fact(n-1); }";
-        assertDoesNotThrow(() -> runSemantic(code));
+        runSemantic(code);
     }
     @Test
     void testMissingReturnInElse() {
@@ -247,13 +247,13 @@ public class TestSemanticAnalysis {
         assertEquals("OperatorError", ex.getKeyword());
     }
     @Test
-    void testValidProgram() {
+    void testValidProgram() throws Exception {
         String code = "coll Point { INT x; INT y; }\n" +
                 "def INT add(INT a, INT b) { return a + b; }\n" +
                 "def main() {\n" +
                 "  INT res = add(10, 20);\n" +
                 "  BOOL check = not (res < 0);\n" +
                 "}";
-        assertDoesNotThrow(() -> runSemantic(code));
+        runSemantic(code);
     }
 }
