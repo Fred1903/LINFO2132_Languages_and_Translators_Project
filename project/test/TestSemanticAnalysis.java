@@ -120,7 +120,12 @@ public class TestSemanticAnalysis {
         SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
         assertEquals("OperatorError", ex.getKeyword());
     }
-
+    @Test
+    void testStringConcat() {
+        String code = "def main() { STRING s = \"hello\" + 1; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("OperatorError", ex.getKeyword());
+    }
     @Test
     void testTooManyArguments() {
         String code = "def f(INT x) {} def main() { f(1, 2); }";
