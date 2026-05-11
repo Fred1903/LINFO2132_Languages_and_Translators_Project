@@ -30,6 +30,7 @@ dependencies {
 
     // This dependency is used by the application.
     implementation("com.google.guava:guava:31.1-jre")
+    implementation("org.ow2.asm:asm:9.9.1")
 }
 
 tasks.named<Test>("test") {
