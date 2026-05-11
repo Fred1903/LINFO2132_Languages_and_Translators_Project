@@ -22,7 +22,7 @@ public class CodeGenerator {
 
         // Creates class with ASM
         ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        classWriter.visit(V1_8, ACC_PUBLIC | ACC_SUPER, className, null, "java/lang/Object", null);
+        classWriter.visit(V1_8, ACC_PUBLIC, className, null, "java/lang/Object", null);
 
 
         //search def main in AST and creates the content

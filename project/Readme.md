@@ -58,3 +58,23 @@ Replace `test_type.lang` with any file in `tests_semantic/` to test a different 
 ./gradlew test --rerun-tasks
 ```
 
+---
+
+# Code Generation
+
+## Generate and run a .class file
+
+From the `project` directory:
+
+```bash
+.\gradlew.bat run --args="source.lang -o ./output.class"
+java output
+```
+
+Example:
+
+```bash
+.\gradlew.bat run --args="helloWorld.lang -o ./helloWorld.class"
+java helloWorld
+```
+
