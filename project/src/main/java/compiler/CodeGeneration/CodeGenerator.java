@@ -300,26 +300,42 @@ public class CodeGenerator implements ASTVisitor<Void> {
             return null;
         }
 
-        // all other operators
+        // all other operators: check if float is involved
+        Type leftType  = node.getLeft().getResolvedType();
+        Type rightType = node.getRight().getResolvedType();
+        boolean isFloat = leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT;
+
         node.getLeft().accept(this);
+        if (isFloat && leftType == PrimitiveType.INT) currentMethodVisitor.visitInsn(I2F);
         node.getRight().accept(this);
+        if (isFloat && rightType == PrimitiveType.INT) currentMethodVisitor.visitInsn(I2F);
+
         switch (operator) {
-            case "+"    -> currentMethodVisitor.visitInsn(IADD);
-            case "-"   -> currentMethodVisitor.visitInsn(ISUB);
-            case "*"   -> currentMethodVisitor.visitInsn(IMUL);
-            case "/"   -> currentMethodVisitor.visitInsn(IDIV);
+            // can not directly operate float and int, thereofre convert int in float if its the case
+            case "+"   -> currentMethodVisitor.visitInsn(isFloat ? FADD : IADD);
+            case "-"   -> currentMethodVisitor.visitInsn(isFloat ? FSUB : ISUB);
+            case "*"   -> currentMethodVisitor.visitInsn(isFloat ? FMUL : IMUL);
+            case "/"   -> currentMethodVisitor.visitInsn(isFloat ? FDIV : IDIV);
             case "%"   -> currentMethodVisitor.visitInsn(IREM);
-            case "=="  -> emitComparison(IF_ICMPEQ);
-            case "=/=" -> emitComparison(IF_ICMPNE);
-            case "<"   -> emitComparison(IF_ICMPLT);
-            case ">"   -> emitComparison(IF_ICMPGT);
-            case "<="  -> emitComparison(IF_ICMPLE);
-            case ">="  -> emitComparison(IF_ICMPGE);
+            case "=="  -> { if (isFloat) pushFloatComparison("==");  else pushIntComparison(IF_ICMPEQ); }
+            case "=/=" -> { if (isFloat) pushFloatComparison("=/="); else pushIntComparison(IF_ICMPNE); }
+            case "<"   -> { if (isFloat) pushFloatComparison("<");   else pushIntComparison(IF_ICMPLT); }
+            case ">"   -> { if (isFloat) pushFloatComparison(">");   else pushIntComparison(IF_ICMPGT); }
+            case "<="  -> { if (isFloat) pushFloatComparison("<=");  else pushIntComparison(IF_ICMPLE); }
+            case ">="  -> { if (isFloat) pushFloatComparison(">=");  else pushIntComparison(IF_ICMPGE); }
         }
         return null;
     }
 
-    @Override public Void visit(UnaryExpression node) { return null; }
+    @Override
+    public Void visit(UnaryExpression node) {
+        node.getOperand().accept(this);
+        switch (node.getOperator()) {
+            //ineg inverse int sign, fneg same for float
+            case "-" -> currentMethodVisitor.visitInsn(node.getResolvedType() == PrimitiveType.FLOAT ? FNEG : INEG);
+        }
+        return null;
+    }
 
     @Override
     public Void visit(Literal node) {
@@ -331,8 +347,21 @@ public class CodeGenerator implements ASTVisitor<Void> {
         return null;
     }
 
-    @Override public Void visit(FloatLiteral node) { return null; }
-    @Override public Void visit(BooleanTerm node) { return null; }
+    @Override
+    public Void visit(FloatLiteral node) {
+        currentMethodVisitor.visitLdcInsn(Float.parseFloat(node.getValue()));
+        return null;
+    }
+
+    @Override
+    public Void visit(BooleanTerm node) {
+        //Bool is represented like int, JVM : 1=true and 0=false
+        Object value = node.getValue();
+        // checks if value is a boolean, then check if has value "true" and stocks it as boolean
+        boolean isTrue = (value instanceof Boolean bool) ? bool : "true".equals(value.toString());
+        currentMethodVisitor.visitInsn(isTrue ? ICONST_1 : ICONST_0);
+        return null;
+    }
 
     @Override
     public Void visit(CharacterChain node) {
@@ -386,10 +415,30 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
 
     // Compares 2 ints already on stack, pushes 1 if true else 0 
-    private void emitComparison(int jumpOpcode) {
+    private void pushIntComparison(int jumpOpcode) {
         Label trueLabel = new Label();
         Label endLabel  = new Label();
         currentMethodVisitor.visitJumpInsn(jumpOpcode, trueLabel);
+        currentMethodVisitor.visitInsn(ICONST_0);
+        currentMethodVisitor.visitJumpInsn(GOTO, endLabel);
+        currentMethodVisitor.visitLabel(trueLabel);
+        currentMethodVisitor.visitInsn(ICONST_1);
+        currentMethodVisitor.visitLabel(endLabel);
+    }
+
+    // Float comparison: two floats already on stack → FCMPL pushes -1/0/1, then jump
+    private void pushFloatComparison(String op) {
+        currentMethodVisitor.visitInsn(FCMPL);
+        Label trueLabel = new Label();
+        Label endLabel  = new Label();
+        switch (op) {
+            case "=="  -> currentMethodVisitor.visitJumpInsn(IFEQ, trueLabel);
+            case "=/=" -> currentMethodVisitor.visitJumpInsn(IFNE, trueLabel);
+            case "<"   -> currentMethodVisitor.visitJumpInsn(IFLT, trueLabel);
+            case ">"   -> currentMethodVisitor.visitJumpInsn(IFGT, trueLabel);
+            case "<="  -> currentMethodVisitor.visitJumpInsn(IFLE, trueLabel);
+            case ">="  -> currentMethodVisitor.visitJumpInsn(IFGE, trueLabel);
+        }
         currentMethodVisitor.visitInsn(ICONST_0);
         currentMethodVisitor.visitJumpInsn(GOTO, endLabel);
         currentMethodVisitor.visitLabel(trueLabel);

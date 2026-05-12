@@ -1,10 +1,9 @@
 def main() {
-    INT x = 5;
-    if (x > 3) {
+    FLOAT x = 3.14;
+    FLOAT y = 2.0;
+    println(x + y);
+    BOOL b = true;
+    if (b) {
         println(x);
-    }
-    INT i;
-    for (i; 1 -> 4; i+1) {
-        println(i);
     }
 }
