@@ -303,10 +303,16 @@ public class CodeGenerator implements ASTVisitor<Void> {
             String name = identifier.getName();
             if (localVariableSlots.containsKey(name)) {
                 storeVariable(identifier.getResolvedType(), localVariableSlots.get(name));
-            } 
+            }
             else if (globalVariables.containsKey(name)) {
                 currentMethodVisitor.visitFieldInsn(PUTSTATIC, className, name, getTypeDescriptor(globalVariables.get(name)));
             }
+        } 
+        else if (node.getLeft() instanceof ArrayAccess arrayAccess) {
+            arrayAccess.getArray().accept(this); 
+            arrayAccess.getIndex().accept(this);
+            node.getRight().accept(this);     
+            storeArrayElement(getArrayElementType(arrayAccess.getArray()));
         }
         return null;
     }
@@ -431,8 +437,24 @@ public class CodeGenerator implements ASTVisitor<Void> {
     }
 
     @Override public Void visit(CollectionConstructor node) { return null; }
-    @Override public Void visit(ArrayAccess node) { return null; }
-    @Override public Void visit(ArrayCreation node) { return null; }
+    @Override
+    public Void visit(ArrayAccess node) {
+        node.getArray().accept(this);  
+        node.getIndex().accept(this); 
+        loadArrayElement(getArrayElementType(node.getArray()));
+        return null;
+    }
+
+    @Override
+    public Void visit(ArrayCreation node) {
+        node.getSizes().get(0).accept(this); // push size
+        Type elementType = node.getElementType();
+        if (elementType == PrimitiveType.INT) currentMethodVisitor.visitIntInsn(NEWARRAY, T_INT);
+        else if (elementType == PrimitiveType.FLOAT) currentMethodVisitor.visitIntInsn(NEWARRAY, T_FLOAT);
+        else if (elementType == PrimitiveType.BOOL) currentMethodVisitor.visitIntInsn(NEWARRAY, T_BOOLEAN);
+        else currentMethodVisitor.visitTypeInsn(ANEWARRAY, internalName(elementType));
+        return null;
+    }
     @Override public Void visit(FieldAccess node) { return null; }
 
 
@@ -478,6 +500,35 @@ public class CodeGenerator implements ASTVisitor<Void> {
         currentMethodVisitor.visitLabel(trueLabel);
         currentMethodVisitor.visitInsn(ICONST_1);
         currentMethodVisitor.visitLabel(endLabel);
+    }
+
+    // IALOAD/FALOAD/BALOAD/AALOAD depending on element type
+    private void loadArrayElement(Type elementType) {
+        if(elementType == PrimitiveType.INT) currentMethodVisitor.visitInsn(IALOAD);
+        else if (elementType == PrimitiveType.FLOAT) currentMethodVisitor.visitInsn(FALOAD);
+        else if (elementType == PrimitiveType.BOOL) currentMethodVisitor.visitInsn(BALOAD);
+        else currentMethodVisitor.visitInsn(AALOAD);
+    }
+
+    // IASTORE/FASTORE/BASTORE/AASTORE depending on element type
+    private void storeArrayElement(Type elementType) {
+        if (elementType == PrimitiveType.INT) currentMethodVisitor.visitInsn(IASTORE);
+        else if (elementType == PrimitiveType.FLOAT) currentMethodVisitor.visitInsn(FASTORE);
+        else if (elementType == PrimitiveType.BOOL) currentMethodVisitor.visitInsn(BASTORE);
+        else currentMethodVisitor.visitInsn(AASTORE);
+    }
+
+    // Returns element type of array node
+    private Type getArrayElementType(ASTNode arrayNode) {
+        if (arrayNode.getResolvedType() instanceof ArrayType arrayType) return arrayType.getElementType();
+        return PrimitiveType.INT;
+    }
+
+    // Internal jvm class name for reference types 
+    private String internalName(Type type) {
+        if (type == PrimitiveType.STRING) return "java/lang/String";
+        if (type instanceof CollectionType collectionType) return collectionType.getName();
+        return "java/lang/Object";
     }
 
     // Float comparison: two floats already on stack → FCMPL pushes -1/0/1, then jump
