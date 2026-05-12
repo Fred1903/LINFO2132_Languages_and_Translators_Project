@@ -124,27 +124,24 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
     public Type visit(UnaryExpression node) {
         Type operand = node.getOperand().accept(this);
         String operator = node.getOperator();
+        Type resultType;
         if (operator.equals("not")) {
-            if (operand != PrimitiveType.BOOL) {
+            if (operand != PrimitiveType.BOOL)
                 throw new SemanticException("Operator '" + operator + "' requires a BOOL, but got " + operand, node.getLine(), node.getColumn(), "TypeError");
-            }
-            return PrimitiveType.BOOL;
-        }
-        // -
-        if (operator.equals("-")) {
-            if (!isNumeric(operand)) {
+            resultType = PrimitiveType.BOOL;
+        } else if (operator.equals("-")) {
+            if (!isNumeric(operand))
                 throw new SemanticException("Unary expression '-' requires numeric type", node.getLine(), node.getColumn(), "OperatorError");
-            }
-            return operand;
-        }
-        if (operator.equals("++") || operator.equals("--")) {
-            if (operand != PrimitiveType.INT) {
+            resultType = operand;
+        } else if (operator.equals("++") || operator.equals("--")) {
+            if (operand != PrimitiveType.INT)
                 throw new SemanticException("Operator '" + operator + " ' requires an INT", node.getLine(), node.getColumn(), "OperatorError");
-            }
-            return PrimitiveType.INT;
+            resultType = PrimitiveType.INT;
+        } else {
+            throw new SemanticException("Unknown unary operator '" + operator + "'", node.getLine(), node.getColumn(), "OperatorError");
         }
-
-        throw new SemanticException("Unknown unary operator '" + operator + "'", node.getLine(), node.getColumn(), "OperatorError");
+        node.setResolvedType(resultType);
+        return resultType;
     }
 
     @Override
@@ -212,7 +209,9 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
             }
 
         }
-        return castedFunctionType.getReturnType();
+        Type returnType = castedFunctionType.getReturnType();
+        node.setResolvedType(returnType);
+        return returnType;
     }
 
     @Override
@@ -227,7 +226,9 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
                 throw new SemanticException("Field " + fields.get(i).getName() + ": expected " + fields.get(i).getType().getName() + " but received " + argumentType.getName(), node.getLine(), node.getColumn(), "ArgumentError");
             }
         }
-        return new CollectionType(name);
+        Type collectionType = new CollectionType(name);
+        node.setResolvedType(collectionType);
+        return collectionType;
     }
 
     @Override
@@ -235,13 +236,18 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
         Type arrayType = node.getArray().accept(this);
         Type indexType = node.getIndex().accept(this);
         if (indexType!=PrimitiveType.INT)throw new SemanticException("Array index must be INT", node.getLine(), node.getColumn(), "TypeError");
-        if (arrayType instanceof ArrayType) {
-            ArrayType castedArrayType = (ArrayType) arrayType;
-            if (castedArrayType.getDimensions() > 1) return new ArrayType(castedArrayType.getElementType(), castedArrayType.getDimensions()-1);
-            return castedArrayType.getElementType();
+        Type resultType;
+        if (arrayType instanceof ArrayType castedArrayType) {
+            resultType = castedArrayType.getDimensions() > 1
+                ? new ArrayType(castedArrayType.getElementType(), castedArrayType.getDimensions() - 1)
+                : castedArrayType.getElementType();
+        } else if (arrayType == PrimitiveType.STRING) {
+            resultType = PrimitiveType.INT;
+        } else {
+            throw new SemanticException("Cannot index non array type", node.getLine(), node.getColumn(), "TypeError");
         }
-        if (arrayType==PrimitiveType.STRING)return PrimitiveType.INT;
-        throw new SemanticException("Cannot index non array type", node.getLine(), node.getColumn(), "TypeError");
+        node.setResolvedType(resultType);
+        return resultType;
     }
 
     @Override
@@ -250,7 +256,9 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
             Type sizeType = size.accept(this);
             if (sizeType!=PrimitiveType.INT)throw new SemanticException("Array size must be INT", node.getLine(), node.getColumn(), "TypeError");
         }
-        return new ArrayType(node.getElementType(), node.getSizes().size());
+        Type arrayType = new ArrayType(node.getElementType(), node.getSizes().size());
+        node.setResolvedType(arrayType);
+        return arrayType;
     }
 
     @Override
@@ -259,8 +267,11 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
         if (!(objectType instanceof CollectionType))throw new SemanticException("Field access on not collection type", node.getLine(), node.getColumn(), "TypeError");
         List<CollectionField> fields = collectionFields.get(objectType.getName());
         if (fields == null)throw new SemanticException("Unknown collection: " + objectType.getName(), node.getLine(), node.getColumn(), "CollectionError");
-        for (var field : fields){
-            if (field.getName().equals(node.getFieldName())) return field.getType();
+        for (var field : fields) {
+            if (field.getName().equals(node.getFieldName())) {
+                node.setResolvedType(field.getType());
+                return field.getType();
+            }
         }
         throw new SemanticException("Field '" + node.getFieldName() + "' not found in " + objectType.getName(), node.getLine(), node.getColumn(), "CollectionError");
     }

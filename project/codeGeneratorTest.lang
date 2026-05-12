@@ -1,5 +1,10 @@
 def main() {
     INT x = 5;
-    INT y = 3;
-    println(x + y);
+    if (x > 3) {
+        println(x);
+    }
+    INT i;
+    for (i; 1 -> 4; i+1) {
+        println(i);
+    }
 }
