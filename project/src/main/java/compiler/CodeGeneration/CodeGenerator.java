@@ -29,6 +29,9 @@ public class CodeGenerator implements ASTVisitor<Void> {
     // Needed to build INVOKESTATIC descriptors when calling user functions
     private Map<String, FunctionDeclaration> functionDeclarations = new HashMap<>();
 
+    // Global variables/constants, stored as static fields
+    private Map<String, Type> globalVariables = new HashMap<>();
+
 
     public void generateCode(ProgramNode program, String outputPath) throws IOException {
         //Extract class name from the path, ex: test.class --> test
@@ -62,11 +65,51 @@ public class CodeGenerator implements ASTVisitor<Void> {
                 functionDeclarations.put(functionDeclaration.getName(), functionDeclaration);
             }
         }
+
+        // declare global variables/constants as static fields
+        for (ASTNode statement : node.getStatements()) {
+            if (statement instanceof VariableDeclaration variableDeclaration) {
+                int flags = ACC_PUBLIC | ACC_STATIC;
+                if (variableDeclaration.isFinal()) flags |= ACC_FINAL;
+                classWriter.visitField(flags, variableDeclaration.getName(), getTypeDescriptor(variableDeclaration.getType()), null, null).visitEnd();
+                globalVariables.put(variableDeclaration.getName(), variableDeclaration.getType());
+            }
+        }
+
+        // generate clinit to init globals/constants
+        generateClinit(node);
+
         // generate code
         for (ASTNode statement : node.getStatements()) {
-            statement.accept(this);
+            if (statement instanceof FunctionDeclaration || statement instanceof CollectionDeclaration) {
+                statement.accept(this);
+            }
         }
         return null;
+    }
+
+    private void generateClinit(ProgramNode node) {
+        // Check if there's anything to init
+        boolean hasInit = node.getStatements().stream()
+            .anyMatch(s -> s instanceof VariableDeclaration variableDeclaration && variableDeclaration.getValue() != null);
+        if (!hasInit) return;
+
+        MethodVisitor clinit = classWriter.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
+        clinit.visitCode();
+        MethodVisitor savedMethodVisitor = currentMethodVisitor;
+        currentMethodVisitor = clinit;
+
+        for (ASTNode statement : node.getStatements()) {
+            if (statement instanceof VariableDeclaration variableDeclaration && variableDeclaration.getValue() != null) {
+                variableDeclaration.getValue().accept(this);
+                currentMethodVisitor.visitFieldInsn(PUTSTATIC, className, variableDeclaration.getName(), getTypeDescriptor(variableDeclaration.getType()));
+            }
+        }
+
+        clinit.visitInsn(RETURN);
+        clinit.visitMaxs(-1, -1);
+        clinit.visitEnd();
+        currentMethodVisitor = savedMethodVisitor;
     }
 
 
@@ -255,9 +298,15 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
     @Override
     public Void visit(Assignment node) {
-        if (node.getLeft() instanceof Identifier id) {
+        if (node.getLeft() instanceof Identifier identifier) {
             node.getRight().accept(this);
-            storeVariable(id.getResolvedType(), localVariableSlots.get(id.getName()));
+            String name = identifier.getName();
+            if (localVariableSlots.containsKey(name)) {
+                storeVariable(identifier.getResolvedType(), localVariableSlots.get(name));
+            } 
+            else if (globalVariables.containsKey(name)) {
+                currentMethodVisitor.visitFieldInsn(PUTSTATIC, className, name, getTypeDescriptor(globalVariables.get(name)));
+            }
         }
         return null;
     }
@@ -371,8 +420,13 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
     @Override
     public Void visit(Identifier node) {
-        int variableSlot = localVariableSlots.get(node.getName());
-        loadVariable(node.getResolvedType(), variableSlot);
+        String name = node.getName();
+        if (localVariableSlots.containsKey(name)) {
+            loadVariable(node.getResolvedType(), localVariableSlots.get(name));
+        } 
+        else if (globalVariables.containsKey(name)) {
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, className, name, getTypeDescriptor(globalVariables.get(name)));
+        }
         return null;
     }
 

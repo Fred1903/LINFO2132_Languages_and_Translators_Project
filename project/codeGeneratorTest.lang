@@ -1,9 +1,9 @@
+final INT k = 3;
+INT counter = 10;
+
 def main() {
-    FLOAT x = 3.14;
-    FLOAT y = 2.0;
-    println(x + y);
-    BOOL b = true;
-    if (b) {
-        println(x);
-    }
+    println(k);
+    println(counter);
+    counter = counter + 1;
+    println(counter);
 }
