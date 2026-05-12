@@ -1,7 +1,9 @@
 def main() {
-    INT[] tab = INT ARRAY [3];
-    tab[0] = 10;
-    tab[1] = 20;
-    tab[2] = 30;
-    println(tab[1]);
+    BOOL t = true;
+    BOOL nt = not(t);
+    if (nt) {
+        println("not(true) est TRUE");
+    } else {
+        println("not(true) est FALSE");
+    }
 }

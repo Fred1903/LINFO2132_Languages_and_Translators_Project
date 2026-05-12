@@ -13,6 +13,7 @@ import static org.objectweb.asm.Opcodes.*;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class CodeGenerator implements ASTVisitor<Void> {
@@ -32,15 +33,23 @@ public class CodeGenerator implements ASTVisitor<Void> {
     // Global variables/constants, stored as static fields
     private Map<String, Type> globalVariables = new HashMap<>();
 
+    private Map<String, List<CollectionField>> collectionFields = new HashMap<>();
+
+    // Output directory, used to write collection .class files alongside the main .class
+    private String outputDir;
+
 
     public void generateCode(ProgramNode program, String outputPath) throws IOException {
         //Extract class name from the path, ex: test.class --> test
         String fileName = Paths.get(outputPath).getFileName().toString();
         className = fileName.replace(".class", "");
+        Path parentDir = Paths.get(outputPath).getParent();
+        outputDir = (parentDir != null) ? parentDir.toString() : ".";
 
         // Creates class with ASM
         classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         classWriter.visit(V1_8, ACC_PUBLIC, className, null, "java/lang/Object", null);
+        classWriter.visitField(ACC_PRIVATE | ACC_STATIC, "$scanner", "Ljava/util/Scanner;", null, null).visitEnd();
 
         // Traverse the AST
         program.accept(this);
@@ -63,6 +72,13 @@ public class CodeGenerator implements ASTVisitor<Void> {
         for (ASTNode statement : node.getStatements()) {
             if (statement instanceof FunctionDeclaration functionDeclaration) {
                 functionDeclarations.put(functionDeclaration.getName(), functionDeclaration);
+            }
+        }
+
+        //collect all collection declarations 
+        for (ASTNode statement : node.getStatements()) {
+            if (statement instanceof CollectionDeclaration collectionDeclaration) {
+                collectionFields.put(collectionDeclaration.getName(), collectionDeclaration.getFields());
             }
         }
 
@@ -89,16 +105,19 @@ public class CodeGenerator implements ASTVisitor<Void> {
     }
 
     private void generateClinit(ProgramNode node) {
-        // Check if there's anything to init
-        boolean hasInit = node.getStatements().stream()
-            .anyMatch(s -> s instanceof VariableDeclaration variableDeclaration && variableDeclaration.getValue() != null);
-        if (!hasInit) return;
-
         MethodVisitor clinit = classWriter.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         clinit.visitCode();
         MethodVisitor savedMethodVisitor = currentMethodVisitor;
         currentMethodVisitor = clinit;
 
+        // Init Scanner (new Scanner(System.in))
+        clinit.visitTypeInsn(NEW, "java/util/Scanner");
+        clinit.visitInsn(DUP);
+        clinit.visitFieldInsn(GETSTATIC, "java/lang/System", "in", "Ljava/io/InputStream;");
+        clinit.visitMethodInsn(INVOKESPECIAL, "java/util/Scanner", "<init>", "(Ljava/io/InputStream;)V", false);
+        clinit.visitFieldInsn(PUTSTATIC, className, "$scanner", "Ljava/util/Scanner;");
+
+        // Init global variables
         for (ASTNode statement : node.getStatements()) {
             if (statement instanceof VariableDeclaration variableDeclaration && variableDeclaration.getValue() != null) {
                 variableDeclaration.getValue().accept(this);
@@ -167,7 +186,37 @@ public class CodeGenerator implements ASTVisitor<Void> {
     }
 
     @Override public Void visit(ArrayInitializer node) { return null; }
-    @Override public Void visit(CollectionDeclaration node) { return null; }
+
+    @Override
+    public Void visit(CollectionDeclaration node) {
+        // Each collectiom generates its own .class file in the same directory as the main .class 
+        ClassWriter collectionClassWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        collectionClassWriter.visit(V1_8, ACC_PUBLIC, node.getName(), null, "java/lang/Object", null);
+
+        // Declare each field public
+        for (CollectionField field : node.getFields()) {
+            collectionClassWriter.visitField(ACC_PUBLIC, field.getName(), getTypeDescriptor(field.getType()), null, null).visitEnd();
+        }
+
+        // Default constructor, calls super() then return
+        MethodVisitor init = collectionClassWriter.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+        init.visitCode();
+        init.visitVarInsn(ALOAD, 0);
+        init.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        init.visitInsn(RETURN);
+        init.visitMaxs(-1, -1);
+        init.visitEnd();
+
+        collectionClassWriter.visitEnd();
+        try {
+            Files.write(Paths.get(outputDir, node.getName() + ".class"), collectionClassWriter.toByteArray());
+        } 
+        catch (IOException error) {
+            throw new RuntimeException("Failed to write collection class: " + node.getName(), error);
+        }
+        return null;
+    }
+
     @Override public Void visit(CollectionField node) { return null; }
 
 
@@ -208,6 +257,70 @@ public class CodeGenerator implements ASTVisitor<Void> {
             };
             currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println",
                 printlnSignature, false);
+
+        } else if (name.equals("print")) {
+            ASTNode argument = functionCall.getArguments().get(0);
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+            argument.accept(this);
+            String printSignature = switch (argument.getResolvedType().getName()) {
+                case "FLOAT"  -> "(F)V";
+                case "BOOL"   -> "(Z)V";
+                case "STRING" -> "(Ljava/lang/String;)V";
+                default       -> "(I)V";
+            };
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "print", printSignature, false);
+
+        } else if (name.equals("print_INT")) {
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+            functionCall.getArguments().get(0).accept(this);
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(I)V", false);
+
+        } else if (name.equals("print_FLOAT")) {
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+            functionCall.getArguments().get(0).accept(this);
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(F)V", false);
+
+        } else if (name.equals("read_INT")) {
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, className, "$scanner", "Ljava/util/Scanner;");
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/util/Scanner", "nextInt", "()I", false);
+
+        } else if (name.equals("read_FLOAT")) {
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, className, "$scanner", "Ljava/util/Scanner;");
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/util/Scanner", "nextFloat", "()F", false);
+
+        } else if (name.equals("read_STRING")) {
+            currentMethodVisitor.visitFieldInsn(GETSTATIC, className, "$scanner", "Ljava/util/Scanner;");
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/util/Scanner", "next", "()Ljava/lang/String;", false);
+
+        } else if (name.equals("length")) {
+            ASTNode argument = functionCall.getArguments().get(0);
+            argument.accept(this);
+            if (argument.getResolvedType() == PrimitiveType.STRING) {
+                currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "length", "()I", false);
+            } else {
+                currentMethodVisitor.visitInsn(ARRAYLENGTH);
+            }
+
+        } else if (name.equals("floor")) {
+            functionCall.getArguments().get(0).accept(this);
+            currentMethodVisitor.visitInsn(F2D);
+            currentMethodVisitor.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "floor", "(D)D", false);
+            currentMethodVisitor.visitInsn(D2I);
+
+        } else if (name.equals("ceil")) {
+            functionCall.getArguments().get(0).accept(this);
+            currentMethodVisitor.visitInsn(F2D);
+            currentMethodVisitor.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "ceil", "(D)D", false);
+            currentMethodVisitor.visitInsn(D2I);
+
+        } else if (name.equals("str")) {
+            functionCall.getArguments().get(0).accept(this);
+            currentMethodVisitor.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf", "(I)Ljava/lang/String;", false);
+
+        } else if (name.equals("not")) {
+            functionCall.getArguments().get(0).accept(this);
+            currentMethodVisitor.visitInsn(ICONST_1);
+            currentMethodVisitor.visitInsn(IXOR);
 
         } else if (functionDeclarations.containsKey(name)) {
             // User-defined function: push arguments then INVOKESTATIC
@@ -307,12 +420,19 @@ public class CodeGenerator implements ASTVisitor<Void> {
             else if (globalVariables.containsKey(name)) {
                 currentMethodVisitor.visitFieldInsn(PUTSTATIC, className, name, getTypeDescriptor(globalVariables.get(name)));
             }
-        } 
+        }
         else if (node.getLeft() instanceof ArrayAccess arrayAccess) {
-            arrayAccess.getArray().accept(this); 
+            arrayAccess.getArray().accept(this);
             arrayAccess.getIndex().accept(this);
-            node.getRight().accept(this);     
+            node.getRight().accept(this);
             storeArrayElement(getArrayElementType(arrayAccess.getArray()));
+        }
+        else if (node.getLeft() instanceof FieldAccess fieldAccess) {
+            fieldAccess.getObject().accept(this);
+            node.getRight().accept(this);
+            String collectionName = fieldAccess.getObject().getResolvedType().getName();
+            Type fieldType  = getFieldType(collectionName, fieldAccess.getFieldName());
+            currentMethodVisitor.visitFieldInsn(PUTFIELD, collectionName, fieldAccess.getFieldName(), getTypeDescriptor(fieldType));
         }
         return null;
     }
@@ -387,7 +507,8 @@ public class CodeGenerator implements ASTVisitor<Void> {
         node.getOperand().accept(this);
         switch (node.getOperator()) {
             //ineg inverse int sign, fneg same for float
-            case "-" -> currentMethodVisitor.visitInsn(node.getResolvedType() == PrimitiveType.FLOAT ? FNEG : INEG);
+            case "-"   -> currentMethodVisitor.visitInsn(node.getResolvedType() == PrimitiveType.FLOAT ? FNEG : INEG);
+            case "not" -> { currentMethodVisitor.visitInsn(ICONST_1); currentMethodVisitor.visitInsn(IXOR); }
         }
         return null;
     }
@@ -436,7 +557,24 @@ public class CodeGenerator implements ASTVisitor<Void> {
         return null;
     }
 
-    @Override public Void visit(CollectionConstructor node) { return null; }
+    @Override
+    public Void visit(CollectionConstructor node) {
+        String collectionName = node.getName();
+        List<CollectionField> fields = collectionFields.get(collectionName);
+
+        currentMethodVisitor.visitTypeInsn(NEW, collectionName);
+        currentMethodVisitor.visitInsn(DUP);
+        currentMethodVisitor.visitMethodInsn(INVOKESPECIAL, collectionName, "<init>", "()V", false);
+
+        for (int i = 0; i < node.getArguments().size(); i++) {
+            currentMethodVisitor.visitInsn(DUP); // keep ref for next PUTFIELD
+            node.getArguments().get(i).accept(this);
+            CollectionField field = fields.get(i);
+            currentMethodVisitor.visitFieldInsn(PUTFIELD, collectionName, field.getName(), getTypeDescriptor(field.getType()));
+        }
+        return null;
+    }
+
     @Override
     public Void visit(ArrayAccess node) {
         node.getArray().accept(this);  
@@ -455,7 +593,16 @@ public class CodeGenerator implements ASTVisitor<Void> {
         else currentMethodVisitor.visitTypeInsn(ANEWARRAY, internalName(elementType));
         return null;
     }
-    @Override public Void visit(FieldAccess node) { return null; }
+
+    @Override
+    public Void visit(FieldAccess node) {
+        // p.x --> push object reference, then GETFIELD collName.fieldName descriptor
+        node.getObject().accept(this);
+        String collectionName = node.getObject().getResolvedType().getName();
+        Type fieldType  = getFieldType(collectionName, node.getFieldName());
+        currentMethodVisitor.visitFieldInsn(GETFIELD, collectionName, node.getFieldName(), getTypeDescriptor(fieldType));
+        return null;
+    }
 
 
     ////// Helpers //////
@@ -524,7 +671,18 @@ public class CodeGenerator implements ASTVisitor<Void> {
         return PrimitiveType.INT;
     }
 
-    // Internal jvm class name for reference types 
+    // Returns type of a field in collection 
+    private Type getFieldType(String collectionName, String fieldName) {
+        List<CollectionField> fields = collectionFields.get(collectionName);
+        if (fields != null) {
+            for (CollectionField field : fields) {
+                if (field.getName().equals(fieldName)) return field.getType();
+            }
+        }
+        return PrimitiveType.INT;
+    }
+
+    // Internal jvm class name for reference types
     private String internalName(Type type) {
         if (type == PrimitiveType.STRING) return "java/lang/String";
         if (type instanceof CollectionType collectionType) return collectionType.getName();
