@@ -52,9 +52,7 @@ public class CodeGenerator implements ASTVisitor<Void> {
     @Override
     public Void visit(FunctionDeclaration functionDeclaration) {
         // Create main method : public static void main(String[] args)
-        currentMethodVisitor = classWriter.visitMethod(
-            ACC_PUBLIC | ACC_STATIC, "main", "([Ljava/lang/String;)V", null, null
-        );
+        currentMethodVisitor = classWriter.visitMethod(ACC_PUBLIC | ACC_STATIC, "main", "([Ljava/lang/String;)V", null, null);
         currentMethodVisitor.visitCode();
 
         // Run through the body of the function
@@ -87,15 +85,17 @@ public class CodeGenerator implements ASTVisitor<Void> {
     @Override
     public Void visit(FunctionCall functionCall) {
         if (functionCall.getName().equals("println")) {
-            //Read the string from the AST
-            String text = ((CharacterChain) functionCall.getArguments().get(0)).getChain().toString();
+            ASTNode argument = functionCall.getArguments().get(0);
             //syso
             currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-            //text inside the syso
-            currentMethodVisitor.visitLdcInsn(text);
+            // check argument
+            argument.accept(this);
+            // Depending the argument, chosse correct descriptor (type signature)
+            // ATTENTION : TODO : Remove instanceof, and put variable inn the ASTNodeBase instead of instanceof for each type....
+            String printlnSignature = (argument instanceof CharacterChain) ? "(Ljava/lang/String;)V" : "(I)V";
             //println
             currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println",
-                "(Ljava/lang/String;)V", false);
+                printlnSignature, false);
         }
         return null;
     }
@@ -108,9 +108,31 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
     ////// Expressions //////
     @Override public Void visit(Assignment node)             { return null; }
-    @Override public Void visit(BinaryExpression node)       { return null; }
+    @Override
+    public Void visit(BinaryExpression node) {
+        node.getLeft().accept(this);
+        node.getRight().accept(this);
+        // opération arithmétique correspondante
+        switch (node.getOperator()) {
+            case "+" -> currentMethodVisitor.visitInsn(IADD);
+            case "-" -> currentMethodVisitor.visitInsn(ISUB);
+            case "*" -> currentMethodVisitor.visitInsn(IMUL);
+            case "/" -> currentMethodVisitor.visitInsn(IDIV);
+            case "%" -> currentMethodVisitor.visitInsn(IREM);
+        }
+        return null;
+    }
     @Override public Void visit(UnaryExpression node)        { return null; }
-    @Override public Void visit(Literal node)                { return null; }
+    @Override
+    public Void visit(Literal node) {
+        int value = Integer.parseInt(node.getValue());
+        // Choisir instruction selon valeur de -1 à 5
+        if (value >= -1 && value <= 5) currentMethodVisitor.visitInsn(ICONST_0 + value);
+        else if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) currentMethodVisitor.visitIntInsn(BIPUSH, value);
+        else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) currentMethodVisitor.visitIntInsn(SIPUSH, value);
+        else currentMethodVisitor.visitLdcInsn(value);
+        return null;
+    }
     @Override public Void visit(FloatLiteral node)           { return null; }
     @Override public Void visit(BooleanTerm node)            { return null; }
     @Override public Void visit(CharacterChain node)         { return null; }
