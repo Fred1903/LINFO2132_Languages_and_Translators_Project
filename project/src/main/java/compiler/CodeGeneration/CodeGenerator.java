@@ -11,11 +11,17 @@ import static org.objectweb.asm.Opcodes.*;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.HashMap;
+import java.util.Map;
 
 public class CodeGenerator implements ASTVisitor<Void> {
 
     private ClassWriter classWriter;
     private MethodVisitor currentMethodVisitor;
+
+    // JVM slot allocated to each local variable 
+    private Map<String, Integer> localVariableSlots = new HashMap<>();
+    private int nextVariableSlot = 0;
 
     public void generateCode(ProgramNode program, String outputPath) throws IOException {
         //Extract class name from the path, ex: test.class --> test
@@ -51,7 +57,11 @@ public class CodeGenerator implements ASTVisitor<Void> {
     ////// Declarations //////
     @Override
     public Void visit(FunctionDeclaration functionDeclaration) {
-        // Create main method : public static void main(String[] args)
+        //Re-init slots for each function 
+        localVariableSlots = new HashMap<>();
+        // Slot 0 = String[] args for main, so local var start at 1
+        nextVariableSlot = 1;
+
         currentMethodVisitor = classWriter.visitMethod(ACC_PUBLIC | ACC_STATIC, "main", "([Ljava/lang/String;)V", null, null);
         currentMethodVisitor.visitCode();
 
@@ -66,7 +76,21 @@ public class CodeGenerator implements ASTVisitor<Void> {
     }
 
     @Override public Void visit(FunctionParameter node)      { return null; }
-    @Override public Void visit(VariableDeclaration node)    { return null; }
+    
+    @Override
+    public Void visit(VariableDeclaration node) {
+        int variableSlot = nextVariableSlot++;
+        localVariableSlots.put(node.getName(), variableSlot);
+        
+        if (node.getValue() != null) {
+            node.getValue().accept(this);
+        } 
+        else {
+            pushDefaultValue(node.getType());
+        }
+        storeVariable(node.getType(), variableSlot);
+        return null;
+    }
     @Override public Void visit(ArrayInitializer node)       { return null; }
     @Override public Void visit(CollectionDeclaration node)  { return null; }
     @Override public Void visit(CollectionField node)        { return null; }
@@ -86,14 +110,15 @@ public class CodeGenerator implements ASTVisitor<Void> {
     public Void visit(FunctionCall functionCall) {
         if (functionCall.getName().equals("println")) {
             ASTNode argument = functionCall.getArguments().get(0);
-            //syso
             currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-            // check argument
             argument.accept(this);
-            // Depending the argument, chosse correct descriptor (type signature)
-            // ATTENTION : TODO : Remove instanceof, and put variable inn the ASTNodeBase instead of instanceof for each type....
-            String printlnSignature = (argument instanceof CharacterChain) ? "(Ljava/lang/String;)V" : "(I)V";
-            //println
+            // Check resolves type to do signature
+            String printlnSignature = switch (argument.getResolvedType().getName()) {
+                case "FLOAT"  -> "(F)V";
+                case "BOOL"   -> "(Z)V";
+                case "STRING" -> "(Ljava/lang/String;)V";
+                default       -> "(I)V";
+            };
             currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println",
                 printlnSignature, false);
         }
@@ -135,10 +160,45 @@ public class CodeGenerator implements ASTVisitor<Void> {
     }
     @Override public Void visit(FloatLiteral node)           { return null; }
     @Override public Void visit(BooleanTerm node)            { return null; }
-    @Override public Void visit(CharacterChain node)         { return null; }
-    @Override public Void visit(Identifier node)             { return null; }
+
+    @Override
+    public Void visit(CharacterChain node) {
+        currentMethodVisitor.visitLdcInsn(node.getChain().toString());
+        return null;
+    }
+
+    @Override
+    public Void visit(Identifier node) {
+        int variableSlot = localVariableSlots.get(node.getName());
+        loadVariable(node.getResolvedType(), variableSlot);
+        return null;
+    }
     @Override public Void visit(CollectionConstructor node)  { return null; }
     @Override public Void visit(ArrayAccess node)            { return null; }
     @Override public Void visit(ArrayCreation node)          { return null; }
     @Override public Void visit(FieldAccess node)            { return null; }
+
+
+    ////// Helpers //////
+
+    // ILOAD/FLOAD/ALOAD depends on type
+    private void loadVariable(Type type, int slot) {
+        if (type == PrimitiveType.FLOAT) currentMethodVisitor.visitVarInsn(FLOAD, slot);
+        else if (type == PrimitiveType.INT || type == PrimitiveType.BOOL) currentMethodVisitor.visitVarInsn(ILOAD, slot);
+        else currentMethodVisitor.visitVarInsn(ALOAD, slot); // String, Array, Collection
+    }
+
+    // ISTORE/FSTORE/ASTORE depends on type
+    private void storeVariable(Type type, int slot) {
+        if (type == PrimitiveType.FLOAT) currentMethodVisitor.visitVarInsn(FSTORE, slot);
+        else if (type == PrimitiveType.INT || type == PrimitiveType.BOOL) currentMethodVisitor.visitVarInsn(ISTORE, slot);
+        else currentMethodVisitor.visitVarInsn(ASTORE, slot); 
+    }
+
+    //Default value for non init variable
+    private void pushDefaultValue(Type type) {
+        if (type == PrimitiveType.FLOAT) currentMethodVisitor.visitInsn(FCONST_0);
+        else if (type == PrimitiveType.INT || type == PrimitiveType.BOOL) currentMethodVisitor.visitInsn(ICONST_0);
+        else currentMethodVisitor.visitInsn(ACONST_NULL);
+    }
 }

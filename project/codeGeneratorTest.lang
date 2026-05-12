@@ -1,0 +1,5 @@
+def main() {
+    INT x = 5;
+    INT y = 3;
+    println(x + y);
+}

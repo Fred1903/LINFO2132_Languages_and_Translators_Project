@@ -9,4 +9,6 @@ public interface ASTNode {
     <T> T accept(ASTVisitor<T> visitor);
     int getLine();
     int getColumn();
+    compiler.Parser.AST.Types.Type getResolvedType();
+    void setResolvedType(compiler.Parser.AST.Types.Type type);
 }

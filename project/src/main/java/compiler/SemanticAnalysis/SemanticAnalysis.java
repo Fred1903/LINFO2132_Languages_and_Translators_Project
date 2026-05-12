@@ -88,39 +88,36 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
         Type rightType = node.getRight().accept(this);
         String operator  = node.getOperator();
 
-        switch (operator) {
+        Type resultType = switch (operator) {
             case "+", "-", "*", "/" -> {
-                if (!isNumeric(leftType) || !isNumeric(rightType)){
+                if (!isNumeric(leftType) || !isNumeric(rightType))
                     throw new SemanticException("Operator '" + operator + "' requires numeric types", node.getLine(), node.getColumn(), "OperatorError");
-                }
-                if (leftType==PrimitiveType.FLOAT || rightType==PrimitiveType.FLOAT)return PrimitiveType.FLOAT;
-                return PrimitiveType.INT;
-
+                yield (leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT) ? PrimitiveType.FLOAT : PrimitiveType.INT;
             }
             case "%" -> {
-                if (leftType!=PrimitiveType.INT || rightType!=PrimitiveType.INT){
+                if (leftType != PrimitiveType.INT || rightType != PrimitiveType.INT)
                     throw new SemanticException("Operator '%' requires INT types", node.getLine(), node.getColumn(), "OperatorError");
-                }
-                return PrimitiveType.INT;
+                yield PrimitiveType.INT;
             }
             case "==", "=/=" -> {
-                if (!isCompatible(leftType, rightType)){
+                if (!isCompatible(leftType, rightType))
                     throw new SemanticException("Operator '" + operator + "' requires same types", node.getLine(), node.getColumn(), "OperatorError");
-                }
-                return PrimitiveType.BOOL;
+                yield PrimitiveType.BOOL;
             }
             case "<", ">", "<=", ">=" -> {
                 if (!isNumeric(leftType) || !isNumeric(rightType))
                     throw new SemanticException("Operator '" + operator + "' requires numeric types", node.getLine(), node.getColumn(), "OperatorError");
-                return PrimitiveType.BOOL;
+                yield PrimitiveType.BOOL;
             }
             case "&&", "||" -> {
-                if (leftType!=PrimitiveType.BOOL || rightType!=PrimitiveType.BOOL)
+                if (leftType != PrimitiveType.BOOL || rightType != PrimitiveType.BOOL)
                     throw new SemanticException("Operator '" + operator + "' requires BOOL types", node.getLine(), node.getColumn(), "OperatorError");
-                return PrimitiveType.BOOL;
+                yield PrimitiveType.BOOL;
             }
             default -> throw new SemanticException("Unknown operator '" + operator + "'", node.getLine(), node.getColumn(), "OperatorError");
-        }
+        };
+        node.setResolvedType(resultType);
+        return resultType;
     }
 
     @Override
@@ -152,27 +149,33 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(Literal node) {
+        node.setResolvedType(PrimitiveType.INT);
         return PrimitiveType.INT;
     }
 
     @Override
     public Type visit(FloatLiteral node) {
+        node.setResolvedType(PrimitiveType.FLOAT);
         return PrimitiveType.FLOAT;
     }
 
     @Override
     public Type visit(BooleanTerm node) {
+        node.setResolvedType(PrimitiveType.BOOL);
         return PrimitiveType.BOOL;
     }
 
     @Override
     public Type visit(CharacterChain node) {
+        node.setResolvedType(PrimitiveType.STRING);
         return PrimitiveType.STRING;
     }
 
     @Override
     public Type visit(Identifier node) {
-        return currentSymbolTable.getType(node.getName());
+        Type type = currentSymbolTable.getType(node.getName());
+        node.setResolvedType(type);
+        return type;
     }
 
     @Override
