@@ -185,7 +185,41 @@ public class CodeGenerator implements ASTVisitor<Void> {
         return null;
     }
 
-    @Override public Void visit(ArrayInitializer node) { return null; }
+    @Override
+    public Void visit(ArrayInitializer node) {
+        List<ASTNode> elements = node.getElements();
+        int size = elements.size();
+
+        // Infer element type from first element's resolved type (semantic already validated homogeneity)
+        Type elementType = PrimitiveType.INT;
+        if (!elements.isEmpty() && elements.get(0).getResolvedType() != null) {
+            elementType = elements.get(0).getResolvedType();
+        }
+
+        // Push size
+        if (size >= -1 && size <= 5) currentMethodVisitor.visitInsn(ICONST_0 + size);
+        else if (size >= Byte.MIN_VALUE && size <= Byte.MAX_VALUE) currentMethodVisitor.visitIntInsn(BIPUSH, size);
+        else if (size >= Short.MIN_VALUE && size <= Short.MAX_VALUE) currentMethodVisitor.visitIntInsn(SIPUSH, size);
+        else currentMethodVisitor.visitLdcInsn(size);
+
+        // Allocate array
+        if (elementType == PrimitiveType.INT) currentMethodVisitor.visitIntInsn(NEWARRAY, T_INT);
+        else if (elementType == PrimitiveType.FLOAT) currentMethodVisitor.visitIntInsn(NEWARRAY, T_FLOAT);
+        else if (elementType == PrimitiveType.BOOL) currentMethodVisitor.visitIntInsn(NEWARRAY, T_BOOLEAN);
+        else currentMethodVisitor.visitTypeInsn(ANEWARRAY, internalName(elementType));
+
+        // Fill each element: DUP ref, push index, push value, store
+        for (int i = 0; i < size; i++) {
+            currentMethodVisitor.visitInsn(DUP);
+            if (i <= 5) currentMethodVisitor.visitInsn(ICONST_0 + i);
+            else if (i <= Byte.MAX_VALUE) currentMethodVisitor.visitIntInsn(BIPUSH, i);
+            else currentMethodVisitor.visitIntInsn(SIPUSH, i);
+            elements.get(i).accept(this);
+            storeArrayElement(elementType);
+        }
+
+        return null;
+    }
 
     @Override
     public Void visit(CollectionDeclaration node) {
@@ -223,9 +257,11 @@ public class CodeGenerator implements ASTVisitor<Void> {
     ////// Statements //////
     @Override
     public Void visit(BlockStatement blockStatement) {
+        Map<String, Integer> savedSlots = new HashMap<>(localVariableSlots);
         for (ASTNode statement : blockStatement.getStatements()) {
             statement.accept(this);
         }
+        localVariableSlots = savedSlots;
         return null;
     }
 
@@ -246,29 +282,34 @@ public class CodeGenerator implements ASTVisitor<Void> {
         String name = functionCall.getName();
 
         if (name.equals("println")) {
-            ASTNode argument = functionCall.getArguments().get(0);
             currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-            argument.accept(this);
-            String printlnSignature = switch (argument.getResolvedType().getName()) {
-                case "FLOAT"  -> "(F)V";
-                case "BOOL"   -> "(Z)V";
-                case "STRING" -> "(Ljava/lang/String;)V";
-                default       -> "(I)V";
-            };
-            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println",
-                printlnSignature, false);
+            if (functionCall.getArguments().isEmpty()) {
+                currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "()V", false);
+            } else {
+                ASTNode argument = functionCall.getArguments().get(0);
+                argument.accept(this);
+                String printlnSignature = switch (argument.getResolvedType().getName()) {
+                    case "FLOAT"  -> "(F)V";
+                    case "BOOL"   -> "(Z)V";
+                    case "STRING" -> "(Ljava/lang/String;)V";
+                    default       -> "(I)V";
+                };
+                currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", printlnSignature, false);
+            }
 
         } else if (name.equals("print")) {
-            ASTNode argument = functionCall.getArguments().get(0);
-            currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-            argument.accept(this);
-            String printSignature = switch (argument.getResolvedType().getName()) {
-                case "FLOAT"  -> "(F)V";
-                case "BOOL"   -> "(Z)V";
-                case "STRING" -> "(Ljava/lang/String;)V";
-                default       -> "(I)V";
-            };
-            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "print", printSignature, false);
+            if (!functionCall.getArguments().isEmpty()) {
+                ASTNode argument = functionCall.getArguments().get(0);
+                currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+                argument.accept(this);
+                String printSignature = switch (argument.getResolvedType().getName()) {
+                    case "FLOAT"  -> "(F)V";
+                    case "BOOL"   -> "(Z)V";
+                    case "STRING" -> "(Ljava/lang/String;)V";
+                    default       -> "(I)V";
+                };
+                currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "print", printSignature, false);
+            }
 
         } else if (name.equals("print_INT")) {
             currentMethodVisitor.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
@@ -315,7 +356,8 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
         } else if (name.equals("str")) {
             functionCall.getArguments().get(0).accept(this);
-            currentMethodVisitor.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf", "(I)Ljava/lang/String;", false);
+            currentMethodVisitor.visitInsn(I2C);
+            currentMethodVisitor.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf", "(C)Ljava/lang/String;", false);
 
         } else if (name.equals("not")) {
             functionCall.getArguments().get(0).accept(this);
@@ -478,7 +520,8 @@ public class CodeGenerator implements ASTVisitor<Void> {
         // all other operators: check if float is involved
         Type leftType  = node.getLeft().getResolvedType();
         Type rightType = node.getRight().getResolvedType();
-        boolean isFloat = leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT;
+        boolean isFloat  = leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT;
+        boolean isString = leftType == PrimitiveType.STRING;
 
         node.getLeft().accept(this);
         if (isFloat && leftType == PrimitiveType.INT) currentMethodVisitor.visitInsn(I2F);
@@ -487,13 +530,28 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
         switch (operator) {
             // can not directly operate float and int, thereofre convert int in float if its the case
-            case "+"   -> currentMethodVisitor.visitInsn(isFloat ? FADD : IADD);
+            case "+" -> {
+                if (isString) currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "concat", "(Ljava/lang/String;)Ljava/lang/String;", false);
+                else currentMethodVisitor.visitInsn(isFloat ? FADD : IADD);
+            }
             case "-"   -> currentMethodVisitor.visitInsn(isFloat ? FSUB : ISUB);
             case "*"   -> currentMethodVisitor.visitInsn(isFloat ? FMUL : IMUL);
             case "/"   -> currentMethodVisitor.visitInsn(isFloat ? FDIV : IDIV);
             case "%"   -> currentMethodVisitor.visitInsn(IREM);
-            case "=="  -> { if (isFloat) pushFloatComparison("==");  else pushIntComparison(IF_ICMPEQ); }
-            case "=/=" -> { if (isFloat) pushFloatComparison("=/="); else pushIntComparison(IF_ICMPNE); }
+            case "==" -> {
+                if (isFloat) pushFloatComparison("==");
+                else if (isString) currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
+                else pushIntComparison(IF_ICMPEQ);
+            }
+            case "=/=" -> {
+                if (isFloat) pushFloatComparison("=/=");
+                else if (isString) {
+                    currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
+                    currentMethodVisitor.visitInsn(ICONST_1);
+                    currentMethodVisitor.visitInsn(IXOR);
+                }
+                else pushIntComparison(IF_ICMPNE);
+            }
             case "<"   -> { if (isFloat) pushFloatComparison("<");   else pushIntComparison(IF_ICMPLT); }
             case ">"   -> { if (isFloat) pushFloatComparison(">");   else pushIntComparison(IF_ICMPGT); }
             case "<="  -> { if (isFloat) pushFloatComparison("<=");  else pushIntComparison(IF_ICMPLE); }
@@ -577,9 +635,15 @@ public class CodeGenerator implements ASTVisitor<Void> {
 
     @Override
     public Void visit(ArrayAccess node) {
-        node.getArray().accept(this);  
-        node.getIndex().accept(this); 
-        loadArrayElement(getArrayElementType(node.getArray()));
+        node.getArray().accept(this);
+        node.getIndex().accept(this);
+        if (node.getArray().getResolvedType() == PrimitiveType.STRING) {
+            // string indexing, charAt returns char
+            currentMethodVisitor.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "charAt", "(I)C", false);
+        } 
+        else {
+            loadArrayElement(getArrayElementType(node.getArray()));
+        }
         return null;
     }
 

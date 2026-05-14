@@ -89,7 +89,14 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
         String operator  = node.getOperator();
 
         Type resultType = switch (operator) {
-            case "+", "-", "*", "/" -> {
+            case "+" -> {
+                if (leftType == PrimitiveType.STRING && rightType == PrimitiveType.STRING)
+                    yield PrimitiveType.STRING;
+                if (!isNumeric(leftType) || !isNumeric(rightType))
+                    throw new SemanticException("Operator '+' requires numeric types or two STRINGs", node.getLine(), node.getColumn(), "OperatorError");
+                yield (leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT) ? PrimitiveType.FLOAT : PrimitiveType.INT;
+            }
+            case "-", "*", "/" -> {
                 if (!isNumeric(leftType) || !isNumeric(rightType))
                     throw new SemanticException("Operator '" + operator + "' requires numeric types", node.getLine(), node.getColumn(), "OperatorError");
                 yield (leftType == PrimitiveType.FLOAT || rightType == PrimitiveType.FLOAT) ? PrimitiveType.FLOAT : PrimitiveType.INT;
@@ -190,6 +197,7 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
             if (argumentType!=PrimitiveType.STRING && !(argumentType instanceof ArrayType)){
                 throw new SemanticException("length() expects STRING or ARRAY type", node.getLine(), node.getColumn(), "ArgumentError");
             }
+            node.setResolvedType(PrimitiveType.INT);
             return PrimitiveType.INT;
         }
 
@@ -279,6 +287,10 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
     @Override
     public Type visit(VariableDeclaration node) {
         Type declaredType = node.getType();
+        if (node.isFinal() && !(declaredType instanceof PrimitiveType)) {
+            throw new SemanticException("Constants can only have base types (INT, FLOAT, BOOL, STRING)",
+                    node.getLine(), node.getColumn(), "TypeError");
+        }
         if (declaredType instanceof CollectionType coll) {
             if (!collectionFields.containsKey(coll.getName())) {
                 throw new SemanticException("Unknown collection type: " + coll.getName(),
@@ -406,6 +418,18 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(ProgramNode node) {
+        // Constants must be on top of the file
+        boolean constantsSectionDone = false;
+        for (var statement : node.getStatements()) {
+            if (statement instanceof VariableDeclaration vd && vd.isFinal()) {
+                if (constantsSectionDone)
+                    throw new SemanticException("Constants must be declared at the top of the file", vd.getLine(), vd.getColumn(), "ScopeError");
+            } 
+            else {
+                constantsSectionDone = true;
+            }
+        }
+
         for(var statement : node.getStatements()) {
             if(statement instanceof CollectionDeclaration coll) {
                 coll.accept(this);

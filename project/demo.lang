@@ -1,0 +1,179 @@
+# ============================================================
+# Demo complet — teste toutes les fonctionnalites du langage
+# ============================================================
+
+# --- 1. Constantes (types de base uniquement, doivent etre en tete) ---
+final INT maxVal = 10;
+final FLOAT pi = 3.14;
+final STRING greeting = "Hello";
+final BOOL flagOn = true;
+final INT charCode = 72;
+
+# --- 2. Definitions de collections ---
+coll Point {
+    INT x;
+    INT y;
+}
+
+coll Person {
+    STRING name;
+    INT age;
+}
+
+# --- 3. Variables globales ---
+INT globalCounter = maxVal * 2;
+STRING globalMsg = greeting + " World";
+
+# --- 4. Fonctions ---
+
+def INT factorial(INT n) {
+    if (n == 0) { return 1; }
+    return n * factorial(n - 1);
+}
+
+def INT sumRange(INT n) {
+    INT total = 0;
+    for (INT i; 1 -> n + 1; i + 1) {
+        total = total + i;
+    }
+    return total;
+}
+
+def INT sumArray(INT[] arr) {
+    INT total = 0;
+    for (INT i; 0 -> length(arr); i + 1) {
+        total = total + arr[i];
+    }
+    return total;
+}
+
+def BOOL isEven(INT n) {
+    return n % 2 == 0;
+}
+
+def FLOAT circleArea(FLOAT r) {
+    return pi * r * r;
+}
+
+def main() {
+
+    # ── Arithmetic INT ──────────────────────────────────────
+    println("=== Arithmetic ===");
+    println(2 + 3);        # 5
+    println(10 - 4);       # 6
+    println(3 * 7);        # 21
+    println(15 / 4);       # 3  (division entiere)
+    println(15 % 4);       # 3  (modulo)
+    println(-5 + 2);       # -3 (unaire)
+
+    # ── Arithmetic FLOAT + promotion ────────────────────────
+    FLOAT f = 1 + 1.5;
+    println(f);            # 2.5
+    println(pi);           # 3.14
+    println(floor(3.7));   # 3
+    println(ceil(3.2));    # 4
+    println(circleArea(2.0)); # ~12.56
+
+    # ── Variables globales ──────────────────────────────────
+    println("=== Globals ===");
+    println(globalMsg);
+    println(globalCounter);
+    globalCounter = globalCounter + 1;
+    println(globalCounter);
+
+    # ── Comparaisons ────────────────────────────────────────
+    println("=== Comparisons ===");
+    if (5 > 3)   { println("5>3 ok"); }
+    if (2 <= 2)  { println("2<=2 ok"); }
+    if (3 >= 3)  { println("3>=3 ok"); }
+    if (4 =/= 5) { println("4=/=5 ok"); }
+    if (maxVal == 10) { println("maxVal==10 ok"); }
+
+    # ── Booleens ────────────────────────────────────────────
+    println("=== Booleans ===");
+    BOOL a = true && false;
+    BOOL b = false || true;
+    BOOL c = not flagOn;
+    if (a) { println("a:true"); } else { println("a:false"); }
+    if (b) { println("b:true"); } else { println("b:false"); }
+    if (c) { println("c:true"); } else { println("c:false"); }
+    if (maxVal > 5 && not false) { println("compound ok"); }
+
+    # ── Strings ─────────────────────────────────────────────
+    println("=== Strings ===");
+    STRING s = "Hello" + " " + "World";
+    println(s);
+    println(length(s));     # 11
+    println(str(charCode)); # H  (chr(72))
+    println(str(s[0]));     # H  (s[0]=72, str(72)="H")
+    if (s == "Hello World") { println("eq ok"); }
+    if (s =/= "other")      { println("neq ok"); }
+    println();              # ligne vide
+
+    # ── while ───────────────────────────────────────────────
+    println("=== While ===");
+    INT cnt = 0;
+    while (cnt < 5) { cnt = cnt + 1; }
+    println(cnt);           # 5
+
+    # ── for ─────────────────────────────────────────────────
+    println("=== For ===");
+    println(sumRange(maxVal));  # 1+2+...+10 = 55
+
+    # ── Tableaux ────────────────────────────────────────────
+    println("=== Arrays ===");
+    INT[] arr = INT ARRAY [5];
+    for (INT i; 0 -> 5; i + 1) { arr[i] = i * i; }
+    println(arr[0]);        # 0
+    println(arr[3]);        # 9
+    println(length(arr));   # 5
+
+    INT[] init = {10, 20, 30, 40};
+    println(sumArray(init)); # 100
+
+    # ── Collections ─────────────────────────────────────────
+    println("=== Collections ===");
+    Point p = Point(3, 7);
+    println(p.x);           # 3
+    println(p.y);           # 7
+    p.x = p.x + p.y;
+    println(p.x);           # 10
+
+    Person alice = Person("Alice", 30);
+    println(alice.name);
+    println(alice.age);
+
+    # ── Fonctions ───────────────────────────────────────────
+    println("=== Functions ===");
+    println(factorial(7));   # 5040
+    if (isEven(8)) { println("8 even"); }
+    if (not isEven(7)) { println("7 odd"); }
+
+    # ── Scope lexical ────────────────────────────────────────
+    println("=== Scope ===");
+    INT x = 100;
+    if (true) {
+        INT x = 200;
+        println(x);         # 200 (shadowing)
+    }
+    println(x);             # 100 (outer)
+
+    # ── I/O interactif ──────────────────────────────────────
+    println("=== I/O ===");
+    println("Enter an INT:");
+    INT val = read_INT();
+    print("You entered: ");
+    println(val);
+    print("Its square: ");
+    println(val * val);
+
+    println("Enter a FLOAT:");
+    FLOAT fval = read_FLOAT();
+    print_FLOAT(fval);
+    println();
+
+    println("Enter a STRING:");
+    STRING word = read_STRING();
+    println("Length: ");
+    println(length(word));
+}

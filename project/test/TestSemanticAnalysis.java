@@ -256,4 +256,24 @@ public class TestSemanticAnalysis {
                 "}";
         runSemantic(code);
     }
+
+    @Test
+    void testStringConcatValid() throws Exception {
+        String code = "def main() { STRING s = \"hello\" + \" world\"; }";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+
+    @Test
+    void testConstantNotAtTop() {
+        String code = "INT x = 1; final INT c = 2;";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("ScopeError", ex.getKeyword());
+    }
+
+    @Test
+    void testConstantNonBaseType() {
+        String code = "final INT[] arr = INT ARRAY [3];";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("TypeError", ex.getKeyword());
+    }
 }
