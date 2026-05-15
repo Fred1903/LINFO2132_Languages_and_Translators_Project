@@ -14,13 +14,15 @@ public class BinaryExpression extends ASTNodeBase {
     private final ASTNode left;
     private final String operator;
     private final ASTNode right;
-
+    private Object constantValue = null;
     public BinaryExpression(ASTNode left, String operator, ASTNode right) {
         this.left = left;
         this.operator = operator;
         this.right = right;
     }
-
+    public Object getConstantValue() {return constantValue;}
+    public void setConstantValue(Object constantValue) {this.constantValue = constantValue;}
+    public boolean hasConstantValue() {return constantValue != null;}
     public ASTNode getLeft()     { return left; }
     public String getOperator()  { return operator; }
     public ASTNode getRight()    { return right; }

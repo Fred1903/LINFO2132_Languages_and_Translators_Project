@@ -131,7 +131,7 @@ public class Parser {
         if (check("return")) return parseReturnStatement();
 
         // declaration
-        if (check("final") ||
+        if (check("final") || check("var") ||
                 lookahead.getType() == Lexer.SymbolType.TYPE ||
                 lookahead.getType() == Lexer.SymbolType.COLLECTION_TYPE) {
 
@@ -267,21 +267,30 @@ public class Parser {
             isFinal = true;
             advance();
         }
-
-        Type type = parseType(); // INT ,INT[]..,Person
-
+        Type type = null;
+        boolean isVar = false;
+        if (check("var")) {
+            isVar = true;
+            advance();
+        }else {
+            type = parseType(); // INT ,INT[]..,Person
+        }
         String name = lookahead.getName();
         if(!checkType(Lexer.SymbolType.IDENTIFIER)) {
             throw new ParserException("expected identifier name after type at : ",lexer.getLine(),lookahead.getName());
         }
         advance();
-        // initial value : obligatory if final
         ASTNode value = null;
         if (check("=")) {
             advance();
             value = parseExpression();
-        } else if (isFinal) {
-            throw new ParserException("A 'final' variable has to be initialized at : ", lexer.getLine(), name);
+        } else {
+            if (isVar) {
+                throw new ParserException("Type inference 'var' requires an immediate assignment", line, name);
+            }
+            if (isFinal) {
+                throw new ParserException("Final variables must be initialized", line, name);
+            }
         }
 
         match(";");
@@ -319,11 +328,24 @@ public class Parser {
     }
     private ASTNode parseAssignment() throws ParserException {
         ASTNode left = parseLogicalOr();
-
-        if (check("=")|| check("+=") || check("-=") || check("*=") || check("/=")) {
+        if (check("=") || check("+=") || check("-=") || check("*=") || check("/=")) {
+            String operator = lookahead.getName();
+            int line = lexer.getLine();
+            int col = lexer.getColumn();
             advance();
             ASTNode right = parseAssignment();
-            return new Assignment(left, right);
+            if (operator.equals("=")) {
+                Assignment assign = new Assignment(left, right);
+                assign.setLine(line); assign.setColumn(col);
+                return assign;
+            } else {
+                String baseOp = operator.substring(0, 1);
+                BinaryExpression arithmetic = new BinaryExpression(left, baseOp, right);
+                arithmetic.setLine(line); arithmetic.setColumn(col);
+                Assignment assign = new Assignment(left, arithmetic);
+                assign.setLine(line); assign.setColumn(col);
+                return assign;
+            }
         }
         return left;
     }

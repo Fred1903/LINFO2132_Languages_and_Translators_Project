@@ -74,6 +74,17 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(Assignment node) {
+        if (node.getLeft() instanceof Identifier) {
+            String name = ((Identifier) node.getLeft()).getName();
+            SymbolTable.SymbolEntry entry = currentSymbolTable.getEntry(name);
+            if (entry != null && entry.isFinal) {
+                throw new SemanticException(
+                        "Cannot reassign final variable: " + name,
+                        node.getLine(), node.getColumn(),
+                        "TypeError"
+                );
+            }
+        }
         Type leftType  = node.getLeft().accept(this);
         Type rightType = node.getRight().accept(this);
         if (!isCompatible(leftType, rightType)){
@@ -124,7 +135,81 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
             default -> throw new SemanticException("Unknown operator '" + operator + "'", node.getLine(), node.getColumn(), "OperatorError");
         };
         node.setResolvedType(resultType);
+        if (isNumeric(leftType) && isNumeric(rightType)) {
+            foldArithmetic(node);
+        }
         return resultType;
+    }
+    private Object getConstantValue(ASTNode node) {
+        if (node == null) return null;
+
+        if (node instanceof Literal lit) {
+            try { return Integer.parseInt(lit.getValue()); }
+            catch (NumberFormatException e) { return null; }
+        }
+
+        if (node instanceof BooleanTerm bool) {
+            return bool.getValue();
+        }
+
+        if (node instanceof BinaryExpression bin && bin.hasConstantValue()) {
+            return bin.getConstantValue();
+        }
+
+        if (node instanceof Identifier id && id.hasConstantValue()) {
+            return id.getConstantValue();
+        }
+
+        return null;
+    }
+    private void foldArithmetic(BinaryExpression node) {
+        String op = node.getOperator();
+        Object v1 = getConstantValue(node.getLeft());
+        Object v2 = getConstantValue(node.getRight());
+
+        if (v1 == null || v2 == null) return;
+
+        try {
+            Object res = null;
+
+            if (v1 instanceof Integer i1 && v2 instanceof Integer i2) {
+                res = switch (op) {
+                    case "+" -> i1 + i2;
+                    case "-" -> i1 - i2;
+                    case "*" -> i1 * i2;
+                    case "/" -> {
+                        if (i2 == 0) throw new SemanticException("Division by zero", node.getLine(), node.getColumn(), "OperatorError");
+                        yield i1 / i2;
+                    }
+                    case "%" -> {
+                        if (i2 == 0) throw new SemanticException("Division by zero", node.getLine(), node.getColumn(), "OperatorError");
+                        yield i1 % i2;
+                    }
+                    case "==" -> i1.equals(i2);
+                    case "=/=" -> !i1.equals(i2);
+                    case "<" -> i1 < i2;
+                    case ">" -> i1 > i2;
+                    case "<=" -> i1 <= i2;
+                    case ">=" -> i1 >= i2;
+                    default -> null;
+                };
+            }
+            else if (v1 instanceof Boolean b1 && v2 instanceof Boolean b2) {
+                res = switch (op) {
+                    case "&&" -> b1 && b2;
+                    case "||" -> b1 || b2;
+                    case "==" -> b1 == b2;
+                    case "=/=" -> b1 != b2;
+                    default -> null;
+                };
+            }
+
+            if (res != null) {
+                node.setConstantValue(res);
+            }
+        } catch (ArithmeticException e) {
+            throw new SemanticException("Arithmetic error during folding", node.getLine(), node.getColumn(), "OperatorError");
+        }
     }
 
     @Override
@@ -177,7 +262,13 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
 
     @Override
     public Type visit(Identifier node) {
+        SymbolTable.SymbolEntry entry = currentSymbolTable.getEntry(node.getName());
+        if (entry == null) throw new SemanticException("Undeclared identifier " + node.getName(), node.getLine(), node.getColumn(), "ScopeError");
         Type type = currentSymbolTable.getType(node.getName());
+        currentSymbolTable.markAsUsed(node.getName());
+        if (entry.isFinal && entry.value != null) {
+            node.setConstantValue(entry.value);
+        }
         node.setResolvedType(type);
         return type;
     }
@@ -287,6 +378,29 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
     @Override
     public Type visit(VariableDeclaration node) {
         Type declaredType = node.getType();
+        Type valueType = null;
+        if (node.getValue() != null) {
+            valueType = node.getValue().accept(this);
+        }
+        if (declaredType == null) {
+            if (valueType == null) {
+                throw new SemanticException(
+                        "Cannot infer type for '" + node.getName() + "': expression returns void or has no value",
+                        node.getLine(), node.getColumn(), "TypeError"
+                );
+            }
+            declaredType = valueType;
+            node.setType(declaredType);
+        }
+        else {
+            if (valueType != null) {
+                if (!isCompatible(declaredType, valueType)){
+                    throw new SemanticException("Cannot assign " + valueType.getName() + " to " + declaredType.getName() + ", must be same type",
+                            node.getLine(), node.getColumn(), "TypeError");
+                }
+            }
+        }
+
         if (node.isFinal() && !(declaredType instanceof PrimitiveType)) {
             throw new SemanticException("Constants can only have base types (INT, FLOAT, BOOL, STRING)",
                     node.getLine(), node.getColumn(), "TypeError");
@@ -297,14 +411,9 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
                         node.getLine(), node.getColumn(), "TypeError");
             }
         }
-        if (node.getValue() != null) {
-            Type valueType = node.getValue().accept(this);
-            if (!isCompatible(declaredType, valueType)){
-                throw new SemanticException("Cannot assign " + valueType.getName() + " to " + declaredType.getName()+", must be same type",
-                        node.getLine(), node.getColumn(), "TypeError");
-            }
-        }
-        currentSymbolTable.putToScope(node.getName(), declaredType);
+        Object cstVal = getConstantValue(node.getValue());
+        int line = node.getLine();
+        currentSymbolTable.putToScope(node.getName(), declaredType, node.isFinal(),line,cstVal);
         return declaredType;
     }
 
@@ -368,6 +477,7 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
         for(var statement: node.getStatements()){
             statement.accept(this);
         }
+        checkUnusedVariables(currentSymbolTable);
         currentSymbolTable = currentSymbolTable.previousTable;
         return null;
     }
@@ -452,6 +562,15 @@ public class SemanticAnalysis implements ASTVisitor<Type>{
             }
         }
         return null;
+    }
+    private void checkUnusedVariables(SymbolTable table) {
+        for (String name : table.entries.keySet()) {
+            SymbolTable.SymbolEntry entry = table.entries.get(name);
+            if (!entry.isUsed && !(entry.type instanceof FunctionType)) {
+                System.out.println("Warning: Variable '" + name + "' declared at line :  "
+                        + entry.line + " is never used.");
+            }
+        }
     }
 
     private boolean isCompatible(Type expectedReturnType, Type returnType) {

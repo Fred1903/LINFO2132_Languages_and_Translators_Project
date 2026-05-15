@@ -95,6 +95,44 @@ public class TestParser {
 
     }
     @Test
+    public void testCompoundAssignments() throws Exception {
+        // Test +=
+        ProgramNode root = parse("x += 5;");
+        assertTrue(root.getStatements().get(0) instanceof Assignment);
+        Assignment assign = (Assignment) root.getStatements().get(0);
+
+        assertEquals("x", ((Identifier) assign.getLeft()).getName());
+
+        assertTrue(assign.getRight() instanceof BinaryExpression);
+        BinaryExpression bin = (BinaryExpression) assign.getRight();
+        assertEquals("+", bin.getOperator());
+        assertEquals("x", ((Identifier) bin.getLeft()).getName());
+        assertEquals("5", ((Literal) bin.getRight()).getValue());
+
+        ProgramNode root2 = parse("y *= (a + 2);");
+        Assignment assign2 = (Assignment) root2.getStatements().get(0);
+        BinaryExpression bin2 = (BinaryExpression) assign2.getRight();
+        assertEquals("*", bin2.getOperator());
+        assertTrue(bin2.getRight() instanceof BinaryExpression); // (a + 2)
+    }
+    @Test
+    public void testVarSyntax() throws Exception {
+        ProgramNode root = parse("var x = 10;");
+        assertTrue(root.getStatements().get(0) instanceof VariableDeclaration);
+        VariableDeclaration vd = (VariableDeclaration) root.getStatements().get(0);
+        assertEquals("x", vd.getName());
+        assertNull("Type should be null before semantic analysis", vd.getType());
+        ProgramNode root2 = parse("final var y = 3.14;");
+        VariableDeclaration vd2 = (VariableDeclaration) root2.getStatements().get(0);
+        assertTrue(vd2.isFinal());
+        assertEquals("y", vd2.getName());
+    }
+
+    @Test(expected = Exception.class)
+    public void testVarWithoutInitShouldFail() throws Exception {
+        parse("var x;");
+    }
+    @Test
     public void testEqualities() throws Exception {
         // egalité simple
         ProgramNode root1 = parse("a == 5;");

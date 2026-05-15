@@ -13,10 +13,10 @@ import compiler.Parser.AST.Types.Type;
  * isFinal = true interdit toute reassignation future (phase 3).
  */
 public class VariableDeclaration extends ASTNodeBase {
-    private final Type type;
+    private  Type type;
     private final String name;
     private final boolean isFinal;
-    private final ASTNode value; // peut être null
+    private final ASTNode value;
 
     public VariableDeclaration(Type type, String name, boolean isFinal, ASTNode value) {
         this.type = type;
@@ -24,7 +24,9 @@ public class VariableDeclaration extends ASTNodeBase {
         this.isFinal = isFinal;
         this.value = value;
     }
-
+    public void setType(Type type) {
+        this.type = type;
+    }
     public Type getType()     { return type; }
     public String getName()   { return name; }
     public boolean isFinal()  { return isFinal; }

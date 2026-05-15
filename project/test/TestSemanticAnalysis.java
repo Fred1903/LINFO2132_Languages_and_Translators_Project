@@ -7,6 +7,7 @@ import compiler.SemanticAnalysis.SemanticAnalysis;
 import compiler.SemanticAnalysis.SemanticException;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -245,6 +246,138 @@ public class TestSemanticAnalysis {
         String code = "def main() { BOOL b = (1 == true); }";
         SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
         assertEquals("OperatorError", ex.getKeyword());
+    }
+    @Test
+    void testSugarOperator() throws Exception {
+        String code =
+                "def main() {\n" +
+                "INT a = 5;INT b = 5; a+=b; a/=b;a*=b;a-=b;\n"+
+                "  INT res = 10+20;\n" +
+                "  BOOL check = not (res < 0);\n" +
+                "}";
+        runSemantic(code);
+    }
+    @Test
+    void testVarTypeInference() throws Exception {
+        String code = "def main() { var x = 10; INT y = x + 5; }";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+
+    @Test
+    void testVarTypeMismatchAfterInference() {
+        String code = "def main() { var x = 10; x = \"pas un entier\"; }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertEquals("TypeError", ex.getKeyword());
+    }
+
+    @Test
+    void testFinalVarReassignment() {
+        String code = "def main() { final var x = 10; x = 20; }";
+        assertThrows(SemanticException.class, () -> runSemantic(code));
+    }
+    @Test
+    void testVarInferenceFromFunction() throws Exception {
+        String code = "def INT calculer() { return 42; } " +
+                "def main() { var x = calculer(); INT y = x + 1; }";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+
+    @Test
+    void testVarInferenceFromFunctionError() {
+        String code = "def STRING calculer() { return \"hi\"; } " +
+                "def main() { var x = calculer(); INT y = x + 1; }";
+        assertThrows(SemanticException.class, () -> runSemantic(code));
+    }
+    @Test
+    void testVarInferVoidError() {
+        String code = "def main() { var x = print(\"hello\"); }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertTrue(ex.getMessage().contains("void"));
+    }
+    @Test
+    void testUnusedVariableDetection() throws Exception {
+        String code =
+                "def main() {\n" +
+                        "    INT x = 10;\n" +
+                        "    INT y = 20;\n" +
+                        "    print_INT(x);\n" +
+                        "}";
+
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testUnusedVariableInBlocks() throws Exception {
+        String code =
+                "def main() {\n" +
+                        "    var x = 10;\n" +
+                        "    if (x > 5) {\n" +
+                        "        var z = 30;\n" + // z est inutilisé ici
+                        "    }\n" +
+                        "    var a = 100;\n" +
+                        "    print_INT(a);\n" +
+                        "}";
+
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testFunctionsAreNotMarkedUnused() throws Exception {
+        String code =
+                "def INT util(INT a) { return a * 2; }\n" +
+                        "def main() { print_INT(10); }";
+
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testConstantFolding() throws Exception {
+        String code = "def main() { INT x = (10 + 5 + 3 * 7) * 2; print_INT(x); }";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testFullPropagation() throws Exception {
+        String code =
+                "def main() {\n" +
+                        "    final var a = 10;\n" +
+                        "    final var b = a + 5;\n" +
+                        "    var c = (b * 2) + 2;\n" + //  (15 * 2) + 2 -> 32
+                        "    print_INT(c);\n" +
+                        "}";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testComplexArithmeticFolding() throws Exception {
+        // (10 + 5) * (20 / (2 + 3))
+        // 1. 2 + 3 -> 5
+        // 2. 20 / 5 -> 4
+        // 3. 10 + 5 -> 15
+        // 4. 15 * 4 -> 60
+        String code = "def main() { INT x = (10 + 5) * (20 / (2 + 3)); print_INT(x); }";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testDivideByZeroFolding() {
+        String code = "def main() { INT x = 10 / (5 - 5); }";
+        SemanticException ex = assertThrows(SemanticException.class, () -> runSemantic(code));
+        assertTrue(ex.getMessage().toLowerCase().contains("division by zero"));
+    }
+    @Test
+    void testFinalVsNonFinalPropagation() throws Exception {
+        String code =
+                "def main() {\n" +
+                        "    final INT a = 10;\n" +
+                        "    INT b = 5;\n" +
+                        "    INT c = a + 2; \n" +
+                        "    INT d = b + 2; \n" +
+                        "    print_INT(c + d);\n" +
+                        "}";
+        assertDoesNotThrow(() -> runSemantic(code));
+    }
+    @Test
+    void testBooleanFolding() throws Exception {
+        String code = "def main() { BOOL test = (true && false) || (10 == 10); }";
+        // (true && false) -> false
+        // (10 == 10) -> true
+        // false || true -> true
+        assertDoesNotThrow(() -> runSemantic(code));
     }
     @Test
     void testValidProgram() throws Exception {

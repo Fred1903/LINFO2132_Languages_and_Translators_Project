@@ -231,18 +231,28 @@ public class Lexer {
 
         switch (c) {
             // Unambiguous single-character symbols
-            case '+' -> { return new Symbol(SymbolType.SYMBOL, "+"); }
+            case '+' -> {
+                if (currentChar == '=') { advance(); return new Symbol(SymbolType.SYMBOL, "+="); }
+                return new Symbol(SymbolType.SYMBOL, "+");
+            }
             // '-' or '->'
             case '-' -> {
                 while (Character.isWhitespace(currentChar)) advance();
+                if (currentChar == '=') { advance(); return new Symbol(SymbolType.SYMBOL, "-=");}
                 if (currentChar == '>') {
                     advance();
                     return new Symbol(SymbolType.SYMBOL, "->");
                 }
                 return new Symbol(SymbolType.SYMBOL, "-");
             }
-            case '*' -> { return new Symbol(SymbolType.SYMBOL, "*"); }
-            case '/' -> { return new Symbol(SymbolType.SYMBOL, "/"); }
+            case '*' -> {
+                if (currentChar == '=') { advance(); return new Symbol(SymbolType.SYMBOL, "*=");}
+                return new Symbol(SymbolType.SYMBOL, "*");
+            }
+            case '/' -> {
+                if (currentChar == '=') { advance(); return new Symbol(SymbolType.SYMBOL, "/=");}
+                return new Symbol(SymbolType.SYMBOL, "/");
+            }
             case '%' -> { return new Symbol(SymbolType.SYMBOL, "%"); }
             case '(' -> { return new Symbol(SymbolType.SYMBOL, "("); }
             case ')' -> { return new Symbol(SymbolType.SYMBOL, ")"); }
